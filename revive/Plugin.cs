@@ -26,18 +26,21 @@ namespace lethalCompanyRevive
             mls = Logger;
             instance = this;
 
-            // Netcode patching and other initializations
             PatchAllMethods();
+            InitializeComponents();
 
+            Logger.LogInfo("Revive functionality has been initialized.");
+        }
+
+        private void InitializeComponents()
+        {
             GameObject busGameObject = new GameObject("UpgradeBus");
-            busGameObject.AddComponent<UpgradeBus>();
+            UpgradeBus upgradeBus = busGameObject.AddComponent<UpgradeBus>();
             DontDestroyOnLoad(busGameObject);
 
             GameObject reviveStoreGameObject = new GameObject("ReviveStore");
-            reviveStoreGameObject.AddComponent<ReviveStore>();
+            ReviveStore reviveStore = reviveStoreGameObject.AddComponent<ReviveStore>();
             DontDestroyOnLoad(reviveStoreGameObject);
-
-            Logger.LogInfo("Revive functionality has been initialized.");
         }
 
         private void PatchAllMethods()

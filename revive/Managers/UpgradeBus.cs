@@ -7,14 +7,27 @@ namespace lethalCompanyRevive.Managers
 {
     public class UpgradeBus : NetworkBehaviour
     {
-        public static UpgradeBus instance;
+        public static UpgradeBus Instance { get; private set; }
+
         public PluginConfig cfg;
         public TerminalNode modStoreInterface;
         public List<CustomTerminalNode> terminalNodes = new List<CustomTerminalNode>();
 
-        void Awake()
+        private void Awake()
         {
-            instance = this;
+            if (Instance != null && Instance != this)
+            {
+                Destroy(this.gameObject);
+            }
+            else
+            {
+                Instance = this;
+                DontDestroyOnLoad(this.gameObject);
+            }
+        }
+
+        private void Start()
+        {
             InitializeReviveNode();
         }
 
@@ -26,12 +39,13 @@ namespace lethalCompanyRevive.Managers
 
         public void HandleReviveRequest(ulong playerId)
         {
-            ReviveStore.instance.RequestReviveServerRpc(playerId);
+            Debug.Log($"Handle Revive Request for Player ID {playerId}");
+            ReviveStore.Instance.RequestReviveServerRpc(playerId);
         }
 
         public TerminalNode ConstructNode()
         {
-            modStoreInterface = new TerminalNode();
+            TerminalNode modStoreInterface = ScriptableObject.CreateInstance<TerminalNode>();
             modStoreInterface.clearPreviousText = true;
             foreach (CustomTerminalNode terminalNode in terminalNodes)
             {
