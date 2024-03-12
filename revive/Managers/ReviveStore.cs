@@ -41,10 +41,11 @@ namespace lethalCompanyRevive.Managers
 		}
 
 		[ClientRpc]
-		private void RevivePlayer(PlayerControllerB l_player)
+		private void RevivePlayerClientRpc(string playerUsername, Vector3 spawnPosition)
 		{
+			Debug.Log($"RevivePlayerClientRpc called for player: {playerUsername}");
 			Debug.Log("Revive Player");
-			int playerIndex = GetPlayerIndex(l_player.playerUsername);
+			int playerIndex = GetPlayerIndex(playerUsername);
 			PlayerControllerB player = StartOfRound.Instance.allPlayerScripts[playerIndex];
 			Debug.Log($"Player Index: {playerIndex}");
 
@@ -65,7 +66,7 @@ namespace lethalCompanyRevive.Managers
 				player.isInsideFactory = false;
 				player.wasInElevatorLastFrame = false;
 				StartOfRound.Instance.SetPlayerObjectExtrapolate(false);
-				player.TeleportPlayer(GetPlayerSpawnPosition(playerIndex, false));
+				player.TeleportPlayer(spawnPosition);
 				player.setPositionOfDeadPlayer = false;
 				player.DisablePlayerModel(StartOfRound.Instance.allPlayerObjects[playerIndex], true, true);
 				player.helmetLight.enabled = false;
@@ -108,7 +109,6 @@ namespace lethalCompanyRevive.Managers
 				Debug.Log("Reviving players E2");
 				player.reverbPreset = StartOfRound.Instance.shipReverb;
 			}
-
 			Debug.Log("Reviving players F");
 			SoundManager.Instance.earsRingingTimer = 0f;
 			player.voiceMuffledByEnemy = false;
@@ -130,7 +130,6 @@ namespace lethalCompanyRevive.Managers
 				}
 				player.currentVoiceChatIngameSettings.voiceAudio.GetComponent<OccludeAudio>().overridingLowPass = false;
 			}
-
 			Debug.Log("Reviving players G");
 			PlayerControllerB playerControllerB = GameNetworkManager.Instance.localPlayerController;
 			playerControllerB.bleedingHeavily = false;
@@ -140,7 +139,6 @@ namespace lethalCompanyRevive.Managers
 			HUDManager.Instance.UpdateHealthUI(100, false);
 			playerControllerB.spectatedPlayerScript = null;
 			HUDManager.Instance.audioListenerLowPass.enabled = false;
-
 			Debug.Log("Reviving players H");
 			StartOfRound.Instance.SetSpectateCameraToGameOverMode(false, playerControllerB);
 			RagdollGrabbableObject[] array = UnityEngine.Object.FindObjectsOfType<RagdollGrabbableObject>();
@@ -173,7 +171,6 @@ namespace lethalCompanyRevive.Managers
 			StartOfRound.Instance.livingPlayers++;
 			StartOfRound.Instance.allPlayersDead = false;
 			StartOfRound.Instance.UpdatePlayerVoiceEffects();
-			StartOfRound.Instance.PlayerHasRevivedServerRpc();
 		}
 
 		private int GetPlayerIndex(string playerName)
@@ -193,7 +190,6 @@ namespace lethalCompanyRevive.Managers
 			return -1;
 		}
 
-		[ClientRpc]
 		private Vector3 GetPlayerSpawnPosition(int playerNum, bool simpleTeleport = false)
 		{
 			Debug.Log("Get Player Spawn Position");
@@ -253,23 +249,26 @@ namespace lethalCompanyRevive.Managers
 			terminal.groupCredits = newCredits;
 		}
 
-		[ServerRpc(RequireOwnership = false)]
-		private void RevivePlayerServerRpc(PlayerControllerB player)
+		void RevivePlayer(PlayerControllerB player, Vector3 position)
 		{
-			RevivePlayer(player);
+			Debug.Log($"Server: {IsServer}, Host: {IsHost}");
+			// if (!(IsServer || IsHost)) return;
+			// if (player.deadBody == null) return;
+
+			RevivePlayerClientRpc(player.playerUsername, position);
 		}
 
 		[ServerRpc(RequireOwnership = false)]
 		public void RequestReviveServerRpc(ulong playerId)
 		{
+			Debug.Log($"RequestReviveServerRpc called for playerId: {playerId}");
 			PlayerControllerB playerToRevive = Helper.GetPlayer(playerId.ToString());
-			if (playerToRevive != null && playerToRevive.isPlayerDead)
+			if (playerToRevive != null && playerToRevive.isPlayerDead && CanAffordRevive(playerToRevive))
 			{
-				if (CanAffordRevive(playerToRevive))
-				{
-					DeductCredits(playerToRevive);
-					RevivePlayerServerRpc(playerToRevive);
-				}
+				DeductCredits(playerToRevive);
+				int playerIndex = GetPlayerIndex(playerToRevive.playerUsername);
+				Vector3 spawnPosition = GetPlayerSpawnPosition(playerIndex, false);
+				RevivePlayer(playerToRevive, spawnPosition);
 			}
 		}
 	}
