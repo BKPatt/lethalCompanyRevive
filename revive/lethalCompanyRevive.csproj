@@ -20,7 +20,7 @@
       <HintPath>..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\LethalCompany\profiles\Default\BepInEx\core\BepInEx.dll</HintPath>
     </Reference>
     <Reference Include="LethalLib">
-      <HintPath>..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\LethalCompany\cache\Evaisa-LethalLib\0.6.2\plugins\LethalLib\LethalLib.dll</HintPath>
+      <HintPath>..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\LethalCompany\profiles\Friend\BepInEx\plugins\Evaisa-LethalLib\LethalLib\LethalLib.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>D:\Program Files (x86)\Steam\steamapps\common\Lethal Company\Lethal Company_Data\Managed\Newtonsoft.Json.dll</HintPath>

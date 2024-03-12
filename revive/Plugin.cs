@@ -7,6 +7,9 @@ using Newtonsoft.Json;
 using System.IO;
 using System.Reflection;
 using UnityEngine;
+using Unity.Netcode;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace lethalCompanyRevive
 {
@@ -35,11 +38,15 @@ namespace lethalCompanyRevive
         private void InitializeComponents()
         {
             GameObject busGameObject = new GameObject("UpgradeBus");
-            UpgradeBus upgradeBus = busGameObject.AddComponent<UpgradeBus>();
+            busGameObject.AddComponent<NetworkObject>();
+            busGameObject.AddComponent<UpgradeBus>();
+            // LethalLib.Modules.NetworkPrefabs.RegisterNetworkPrefab(busGameObject);
             DontDestroyOnLoad(busGameObject);
 
             GameObject reviveStoreGameObject = new GameObject("ReviveStore");
-            ReviveStore reviveStore = reviveStoreGameObject.AddComponent<ReviveStore>();
+            reviveStoreGameObject.AddComponent<NetworkObject>();
+            reviveStoreGameObject.AddComponent<ReviveStore>();
+            // LethalLib.Modules.NetworkPrefabs.RegisterNetworkPrefab(reviveStoreGameObject);
             DontDestroyOnLoad(reviveStoreGameObject);
         }
 

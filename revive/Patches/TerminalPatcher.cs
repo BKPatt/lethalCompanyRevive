@@ -55,7 +55,7 @@ namespace lethalCompanyRevive.Patches
                             upgradeBus = upgradeBusObject.GetComponent<UpgradeBus>();
                         }
                     }
-
+                    Debug.Log($"Revive command detected for player: {playerName}");
                     __result = UpgradeBus.Instance.ConstructNode();
                     UpgradeBus.Instance.HandleReviveRequest(playerId);
                 }
