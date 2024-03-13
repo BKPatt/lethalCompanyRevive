@@ -27,13 +27,13 @@ namespace lethalCompanyRevive.Managers
             }
         }
 
-		private bool CanAffordRevive(PlayerControllerB player)
+		private bool CanAffordRevive()
 		{
 			Terminal terminal = GameObject.Find("TerminalScript").GetComponent<Terminal>();
 			return terminal.groupCredits >= ReviveCost;
 		}
 
-		private void DeductCredits(PlayerControllerB player)
+		private void DeductCredits()
 		{
 			Terminal terminal = GameObject.Find("TerminalScript").GetComponent<Terminal>();
 			terminal.groupCredits -= ReviveCost;
@@ -41,12 +41,13 @@ namespace lethalCompanyRevive.Managers
 		}
 
 		[ClientRpc]
-		private void RevivePlayerClientRpc(string playerUsername, Vector3 spawnPosition)
+		private void RevivePlayerClientRpc(Vector3 spawnPosition, NetworkBehaviourReference netRef)
 		{
-			Debug.Log($"RevivePlayerClientRpc called for player: {playerUsername}");
+			netRef.TryGet(out NetworkBehaviour playerNet);
+			PlayerControllerB player = playerNet.GetComponent<PlayerControllerB>();
+			Debug.Log($"RevivePlayerClientRpc called for player: {player.playerUsername}");
 			Debug.Log("Revive Player");
-			int playerIndex = GetPlayerIndex(playerUsername);
-			PlayerControllerB player = StartOfRound.Instance.allPlayerScripts[playerIndex];
+			int playerIndex = GetPlayerIndex(player.playerUsername);
 			Debug.Log($"Player Index: {playerIndex}");
 
 			Debug.Log("Reviving players A");
@@ -249,13 +250,10 @@ namespace lethalCompanyRevive.Managers
 			terminal.groupCredits = newCredits;
 		}
 
-		void RevivePlayer(PlayerControllerB player, Vector3 position)
+		void RevivePlayer(Vector3 position, NetworkBehaviourReference netRef)
 		{
 			Debug.Log($"Server: {IsServer}, Host: {IsHost}");
-			// if (!(IsServer || IsHost)) return;
-			// if (player.deadBody == null) return;
-
-			RevivePlayerClientRpc(player.playerUsername, position);
+			RevivePlayerClientRpc(position, netRef);
 		}
 
 		[ServerRpc(RequireOwnership = false)]
@@ -263,12 +261,13 @@ namespace lethalCompanyRevive.Managers
 		{
 			Debug.Log($"RequestReviveServerRpc called for playerId: {playerId}");
 			PlayerControllerB playerToRevive = Helper.GetPlayer(playerId.ToString());
-			if (playerToRevive != null && playerToRevive.isPlayerDead && CanAffordRevive(playerToRevive))
+			NetworkBehaviourReference netRef = new NetworkBehaviourReference(playerToRevive);
+			if (playerToRevive != null && playerToRevive.isPlayerDead && CanAffordRevive())
 			{
-				DeductCredits(playerToRevive);
+				DeductCredits();
 				int playerIndex = GetPlayerIndex(playerToRevive.playerUsername);
 				Vector3 spawnPosition = GetPlayerSpawnPosition(playerIndex, false);
-				RevivePlayer(playerToRevive, spawnPosition);
+				RevivePlayer(spawnPosition, netRef);
 			}
 		}
 	}

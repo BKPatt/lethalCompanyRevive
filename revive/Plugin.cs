@@ -40,14 +40,8 @@ namespace lethalCompanyRevive
             GameObject busGameObject = new GameObject("UpgradeBus");
             busGameObject.AddComponent<NetworkObject>();
             busGameObject.AddComponent<UpgradeBus>();
-            // LethalLib.Modules.NetworkPrefabs.RegisterNetworkPrefab(busGameObject);
+            busGameObject.AddComponent<ReviveStore>();
             DontDestroyOnLoad(busGameObject);
-
-            GameObject reviveStoreGameObject = new GameObject("ReviveStore");
-            reviveStoreGameObject.AddComponent<NetworkObject>();
-            reviveStoreGameObject.AddComponent<ReviveStore>();
-            // LethalLib.Modules.NetworkPrefabs.RegisterNetworkPrefab(reviveStoreGameObject);
-            DontDestroyOnLoad(reviveStoreGameObject);
         }
 
         private void PatchAllMethods()
