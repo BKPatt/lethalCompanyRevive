@@ -9,14 +9,12 @@ namespace lethalCompanyRevive.Misc
         public bool Success { get; }
         public string? Message { get; }
 
-        // Constructor for both success and message
         public Result(bool success, string? message = null)
         {
             Success = success;
             Message = message;
         }
 
-        // Constructor for only message (assumes failure)
         public Result(string message) : this(false, message)
         {
         }
