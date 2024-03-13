@@ -23,11 +23,11 @@ namespace lethalCompanyRevive.Managers
             else
             {
                 Instance = this;
-                DontDestroyOnLoad(this.gameObject);
+                Debug.Log("OnNetworkSpawn");
             }
         }
 
-		private bool CanAffordRevive()
+        private bool CanAffordRevive()
 		{
 			Terminal terminal = GameObject.Find("TerminalScript").GetComponent<Terminal>();
 			return terminal.groupCredits >= ReviveCost;
