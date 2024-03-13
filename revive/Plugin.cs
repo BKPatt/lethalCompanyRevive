@@ -10,6 +10,7 @@ using UnityEngine;
 using Unity.Netcode;
 using System.Security.Cryptography;
 using System.Text;
+using LethalLib.Modules;
 
 namespace lethalCompanyRevive
 {
@@ -25,26 +26,19 @@ namespace lethalCompanyRevive
         {
             cfg = new(base.Config);
             cfg.InitBindings();
-
             mls = Logger;
             instance = this;
-
             PatchAllMethods();
-            InitializeComponents();
-
+            NetcodePatch();
             Logger.LogInfo("Revive functionality has been initialized.");
         }
 
-        private void InitializeComponents()
+        private void PatchAllMethods()
         {
-            GameObject busGameObject = new GameObject("UpgradeBus");
-            busGameObject.AddComponent<NetworkObject>();
-            busGameObject.AddComponent<UpgradeBus>();
-            busGameObject.AddComponent<ReviveStore>();
-            DontDestroyOnLoad(busGameObject);
+            harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
 
-        private void PatchAllMethods()
+        private static void NetcodePatch()
         {
             var types = Assembly.GetExecutingAssembly().GetTypes();
             foreach (var type in types)
@@ -59,15 +53,12 @@ namespace lethalCompanyRevive
                     }
                 }
             }
-
-            harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
 
         private string GetJsonContent()
         {
             var assembly = Assembly.GetExecutingAssembly();
             var resourceName = "lethalCompanyRevive.Misc.InfoStrings.json";
-
             using (StreamReader reader = new StreamReader(assembly.GetManifestResourceStream(resourceName)))
             {
                 return reader.ReadToEnd();
