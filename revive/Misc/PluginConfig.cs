@@ -12,7 +12,6 @@ namespace lethalCompanyRevive.Misc
     {
         readonly ConfigFile configFile;
 
-        // enabled disabled
         public bool REVIVE { get; set; }
 
         public PluginConfig(ConfigFile cfg)
