@@ -14,7 +14,7 @@ namespace lethalCompanyRevive.Misc
 
         public CustomTerminalNode(string name, int unlockPrice, string description, GameObject prefab, int[] prices = null)
         {
-            if (prices == null) { prices = new int[0]; }
+            if (prices == null) prices = new int[0];
             Name = name;
             Prices = prices;
             Description = description;
@@ -29,14 +29,7 @@ namespace lethalCompanyRevive.Misc
 
         public CustomTerminalNode Copy()
         {
-            return new CustomTerminalNode
-            (
-                Name = this.Name,
-                UnlockPrice = this.UnlockPrice,
-                Description = this.Description,
-                Prefab = this.Prefab,
-                Prices = this.Prices
-            );
+            return new CustomTerminalNode(Name, UnlockPrice, Description, Prefab, Prices);
         }
     }
 }

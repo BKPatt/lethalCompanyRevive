@@ -1,10 +1,10 @@
 {
     "name": "Revive",
-    "version_number": "0.0.1",
+    "version_number": "1.0.0",
     "website_url": "https://github.com/BKPatt/lethalCompanyRevive",
-    "description": "Initial Upload",
+    "description": "Revive a Player From the Terminal with revive {player_name}",
     "dependencies": [
         "BepInEx-BepInExPack-5.4.2100",
-        "Evaisa-LethalLib-0.6.2"
+        "Evaisa-LethalLib-0.14.2"
     ]
 }

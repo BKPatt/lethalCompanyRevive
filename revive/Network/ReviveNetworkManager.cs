@@ -1,42 +1,34 @@
 ﻿using HarmonyLib;
 using lethalCompanyRevive.Managers;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using Unity.Netcode;
 using UnityEngine;
+using Unity.Netcode;
+using LethalLib.Modules;
 
 namespace lethalCompanyRevive.Network
 {
     [HarmonyPatch]
     public class ReviveNetworkManager
     {
-        [HarmonyPostfix, HarmonyPatch(typeof(GameNetworkManager), nameof(GameNetworkManager.Start))]
+        static GameObject networkPrefab;
+
+        [HarmonyPostfix, HarmonyPatch(typeof(GameNetworkManager), "Start")]
         public static void Init()
         {
-            Debug.Log("Init");
-            if (networkPrefab != null)
-                return;
-
-            networkPrefab = new GameObject("ReviveStore");
-            ReviveStore reviveStore = networkPrefab.AddComponent<ReviveStore>();
-            UpgradeBus upgradeBus = networkPrefab.AddComponent<UpgradeBus>();
-            NetworkObject networkObject = networkPrefab.AddComponent<NetworkObject>();
+            if (networkPrefab != null) return;
+            networkPrefab = LethalLib.Modules.NetworkPrefabs.CreateNetworkPrefab("ReviveStore");
+            networkPrefab.AddComponent<ReviveStore>();
+            networkPrefab.AddComponent<UpgradeBus>();
             NetworkManager.Singleton.AddNetworkPrefab(networkPrefab);
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(StartOfRound), nameof(StartOfRound.Awake))]
+        [HarmonyPostfix, HarmonyPatch(typeof(StartOfRound), "Awake")]
         static void SpawnNetworkHandler()
         {
-            Debug.Log("SpawnNetworkHandler");
             if (NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsServer)
             {
-                Debug.Log("IsHost or IsServer");
-                var networkHandlerHost = UnityEngine.Object.Instantiate(networkPrefab, Vector3.zero, Quaternion.identity);
-                networkHandlerHost.GetComponent<NetworkObject>().Spawn();
+                var go = Object.Instantiate(networkPrefab, Vector3.zero, Quaternion.identity);
+                go.GetComponent<NetworkObject>().Spawn();
             }
         }
-
-        static GameObject networkPrefab;
     }
 }

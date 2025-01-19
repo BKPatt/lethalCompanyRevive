@@ -9,59 +9,41 @@ namespace lethalCompanyRevive.Managers
         public static UpgradeBus Instance { get; private set; }
         public List<CustomTerminalNode> terminalNodes = new List<CustomTerminalNode>();
 
-        private void Awake()
+        void Awake()
         {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(this.gameObject);
-            }
+            if (Instance != null && Instance != this) Destroy(gameObject);
             else
             {
                 Instance = this;
-                DontDestroyOnLoad(this.gameObject);
+                DontDestroyOnLoad(gameObject);
             }
-
             InitializeReviveNode();
         }
 
-        private void InitializeReviveNode()
+        void InitializeReviveNode()
         {
-            CustomTerminalNode reviveNode = CustomTerminalNode.CreateReviveNode();
-            terminalNodes.Add(reviveNode);
+            CustomTerminalNode node = CustomTerminalNode.CreateReviveNode();
+            terminalNodes.Add(node);
         }
 
         public void HandleReviveRequest(ulong playerId)
         {
-            Debug.Log($"Handle Revive Request for Player ID {playerId}");
             GetComponent<ReviveStore>().RequestReviveServerRpc(playerId);
         }
 
         public TerminalNode ConstructNode()
         {
-            TerminalNode modStoreInterface = ScriptableObject.CreateInstance<TerminalNode>();
-            modStoreInterface.clearPreviousText = true;
-
-            foreach (CustomTerminalNode terminalNode in terminalNodes)
+            TerminalNode node = ScriptableObject.CreateInstance<TerminalNode>();
+            node.clearPreviousText = true;
+            foreach (CustomTerminalNode t in terminalNodes)
             {
-                string saleStatus = terminalNode.salePerc == 1f ? "" : "SALE";
-
-                if (!terminalNode.Unlocked)
-                {
-                    modStoreInterface.displayText += $"\\n{terminalNode.Name} // {(int)(terminalNode.UnlockPrice * terminalNode.salePerc)} // {saleStatus} ";
-                }
-                else
-                {
-                    modStoreInterface.displayText += $"\n{terminalNode.Name} // UNLOCKED ";
-                }
+                string saleStatus = t.salePerc == 1f ? "" : "SALE";
+                if (!t.Unlocked) node.displayText += $"\\n{t.Name} // {(int)(t.UnlockPrice * t.salePerc)} // {saleStatus} ";
+                else node.displayText += $"\n{t.Name} // UNLOCKED ";
             }
-
-            if (modStoreInterface.displayText == "")
-            {
-                modStoreInterface.displayText = "No upgrades available";
-            }
-
-            modStoreInterface.displayText += "\n\n";
-            return modStoreInterface;
+            if (node.displayText == "") node.displayText = "No upgrades available";
+            node.displayText += "\n\n";
+            return node;
         }
     }
 }

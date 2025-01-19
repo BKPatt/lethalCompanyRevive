@@ -1,8 +1,8 @@
 ﻿using HarmonyLib;
 using lethalCompanyRevive.Managers;
-using UnityEngine;
 using lethalCompanyRevive.Helpers;
 using GameNetcodeStuff;
+using UnityEngine;
 using System;
 
 namespace lethalCompanyRevive.Patches
@@ -10,83 +10,69 @@ namespace lethalCompanyRevive.Patches
     [HarmonyPatch(typeof(Terminal))]
     internal class TerminalPatcher
     {
-        private static UpgradeBus upgradeBus;
+        static UpgradeBus upgradeBus;
 
         [HarmonyPostfix]
         [HarmonyPatch("ParsePlayerSentence")]
-        private static void CustomParser(ref Terminal __instance, ref TerminalNode __result)
+        static void CustomParser(ref Terminal __instance, ref TerminalNode __result)
         {
-            string text = __instance.screenText.text.Substring(__instance.screenText.text.Length - __instance.textAdded);
-            string[] commandParts = text.Split(' ');
+            string text = __instance.screenText.text
+                .Substring(__instance.screenText.text.Length - __instance.textAdded)
+                .Trim();
+            string[] parts = text.Split(' ');
 
-            if (commandParts[0] == "revive" && commandParts.Length == 2)
+            // If exactly 2 parts: 'revive <playerName>', do direct single revive
+            if (parts.Length == 2 && parts[0].Equals("revive", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    string playerName = commandParts[1];
-                    PlayerControllerB player = Helper.GetPlayer(playerName);
-
-                    Debug.Log($"Attempting to revive player with name: {playerName}");
-                    Debug.Log(player);
-
-                    if (player == null)
+                    string playerName = parts[1];
+                    PlayerControllerB p = Helper.GetPlayer(playerName);
+                    if (p == null)
                     {
                         __result = CreateTerminalNode($"Player '{playerName}' does not exist.", true);
                         return;
                     }
-                    if (!player.isPlayerDead)
+                    if (!p.isPlayerDead)
                     {
                         __result = CreateTerminalNode($"Player '{playerName}' is not dead.", true);
                         return;
                     }
                     if (__instance.groupCredits < 100)
-
                     {
                         __result = CreateTerminalNode($"Not enough credits {__instance.groupCredits}/100", true);
                         return;
                     }
+                    ulong pid = p.playerClientId;
 
-                    ulong playerId = player.playerClientId;
                     if (upgradeBus == null)
                     {
-                        GameObject upgradeBusObject = GameObject.Find("UpgradeBus");
-                        if (upgradeBusObject != null)
-                        {
-                            upgradeBus = upgradeBusObject.GetComponent<UpgradeBus>();
-                        }
+                        GameObject busObj = GameObject.Find("UpgradeBus");
+                        if (busObj != null) upgradeBus = busObj.GetComponent<UpgradeBus>();
                     }
-                    Debug.Log($"Revive command detected for player: {playerName}");
-                    __result = UpgradeBus.Instance.ConstructNode();
-                    UpgradeBus.Instance.HandleReviveRequest(playerId);
+                    if (upgradeBus != null)
+                    {
+                        __result = upgradeBus.ConstructNode();
+                        upgradeBus.HandleReviveRequest(pid);
+                    }
+                    else
+                    {
+                        __result = CreateTerminalNode("UpgradeBus not found.", true);
+                    }
                 }
-                catch (Exception error)
+                catch (Exception e)
                 {
-                    Debug.Log(error);
+                    Debug.LogError($"Revive error: {e}");
                 }
             }
         }
 
-        public static PlayerControllerB GetPlayerByName(string playerName)
+        static TerminalNode CreateTerminalNode(string txt, bool clear)
         {
-            Debug.Log($"GetPlayerByName");
-            PlayerControllerB[] allPlayers = UnityEngine.Object.FindObjectsOfType<PlayerControllerB>();
-            foreach (PlayerControllerB player in allPlayers)
-            {
-                if (player.playerUsername == playerName)
-                {
-                    return player;
-                }
-            }
-            return null;
-        }
-
-        private static TerminalNode CreateTerminalNode(string displayText, bool clearPreviousText)
-        {
-            Debug.Log($"CreateTerminalNode");
-            TerminalNode node = ScriptableObject.CreateInstance<TerminalNode>();
-            node.displayText = displayText;
-            node.clearPreviousText = clearPreviousText;
-            return node;
+            TerminalNode n = ScriptableObject.CreateInstance<TerminalNode>();
+            n.displayText = txt;
+            n.clearPreviousText = clear;
+            return n;
         }
     }
 }

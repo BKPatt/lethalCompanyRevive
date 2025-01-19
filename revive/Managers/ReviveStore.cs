@@ -1,9 +1,6 @@
 ﻿using GameNetcodeStuff;
 using lethalCompanyRevive.Helpers;
 using lethalCompanyRevive.Misc;
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -12,263 +9,269 @@ namespace lethalCompanyRevive.Managers
     public class ReviveStore : NetworkBehaviour
     {
         public static ReviveStore Instance { get; private set; }
-        private const int ReviveCost = 100;
+        const int ReviveCost = 100;
 
-        private void Awake()
+        public override void OnNetworkSpawn()
         {
-            if (Instance != null && Instance != this)
+            Instance = this;
+            base.OnNetworkSpawn();
+        }
+
+        bool CanAffordRevive()
+        {
+            Terminal t = GameObject.Find("TerminalScript").GetComponent<Terminal>();
+            return t.groupCredits >= ReviveCost;
+        }
+
+        void DeductCredits()
+        {
+            Terminal t = GameObject.Find("TerminalScript").GetComponent<Terminal>();
+            t.groupCredits -= ReviveCost;
+            SyncCreditsServerRpc(t.groupCredits);
+        }
+
+        [ClientRpc]
+        void RevivePlayerClientRpc(Vector3 spawnPosition, NetworkBehaviourReference netRef)
+        {
+            if (!netRef.TryGet(out NetworkBehaviour nb)) return;
+            PlayerControllerB p = nb.GetComponent<PlayerControllerB>();
+            if (p == null) return;
+
+            int i = GetPlayerIndex(p.playerUsername);
+            p.ResetPlayerBloodObjects(p.isPlayerDead || p.isPlayerControlled);
+            p.isClimbingLadder = false;
+            p.clampLooking = false;
+            p.inVehicleAnimation = false;
+            p.disableMoveInput = false;
+            p.disableLookInput = false;
+            p.disableInteract = false;
+            p.ResetZAndXRotation();
+            p.thisController.enabled = true;
+            p.health = 100;
+            p.hasBeenCriticallyInjured = false;
+            p.disableSyncInAnimation = false;
+
+            if (p.isPlayerDead)
             {
-                Destroy(this.gameObject);
+                p.isPlayerDead = false;
+                p.isPlayerControlled = true;
+                p.isInElevator = true;
+                p.isInHangarShipRoom = true;
+                p.isInsideFactory = false;
+                p.parentedToElevatorLastFrame = false;
+                p.overrideGameOverSpectatePivot = null;
+
+                if (p.IsOwner)
+                    StartOfRound.Instance.SetPlayerObjectExtrapolate(false);
+
+                p.TeleportPlayer(spawnPosition);
+                p.setPositionOfDeadPlayer = false;
+                p.DisablePlayerModel(StartOfRound.Instance.allPlayerObjects[i], true, true);
+                p.helmetLight.enabled = false;
+                p.Crouch(false);
+                p.criticallyInjured = false;
+                if (p.playerBodyAnimator != null) p.playerBodyAnimator.SetBool("Limp", false);
+                p.bleedingHeavily = false;
+                p.activatingItem = false;
+                p.twoHanded = false;
+                p.inShockingMinigame = false;
+                p.inSpecialInteractAnimation = false;
+                p.freeRotationInInteractAnimation = false;
+                p.inAnimationWithEnemy = null;
+                p.holdingWalkieTalkie = false;
+                p.speakingToWalkieTalkie = false;
+                p.isSinking = false;
+                p.isUnderwater = false;
+                p.sinkingValue = 0f;
+                p.statusEffectAudio.Stop();
+                p.DisableJetpackControlsLocally();
+                p.health = 100;
+                p.mapRadarDotAnimator.SetBool("dead", false);
+                p.externalForceAutoFade = Vector3.zero;
+
+                if (p.IsOwner)
+                {
+                    HUDManager.Instance.gasHelmetAnimator.SetBool("gasEmitting", false);
+                    p.hasBegunSpectating = false;
+                    HUDManager.Instance.RemoveSpectateUI();
+                    HUDManager.Instance.gameOverAnimator.SetTrigger("revive");
+                    p.hinderedMultiplier = 1f;
+                    p.isMovementHindered = 0;
+                    p.sourcesCausingSinking = 0;
+                    p.reverbPreset = StartOfRound.Instance.shipReverb;
+                }
             }
-            else
+
+            SoundManager.Instance.earsRingingTimer = 0f;
+            p.voiceMuffledByEnemy = false;
+            SoundManager.Instance.playerVoicePitchTargets[i] = 1f;
+            SoundManager.Instance.SetPlayerPitch(1f, i);
+
+            if (p.currentVoiceChatIngameSettings == null)
+                StartOfRound.Instance.RefreshPlayerVoicePlaybackObjects();
+
+            if (p.currentVoiceChatIngameSettings != null)
             {
-                Instance = this;
-                Debug.Log("OnNetworkSpawn");
+                if (p.currentVoiceChatIngameSettings.voiceAudio == null)
+                    p.currentVoiceChatIngameSettings.InitializeComponents();
+
+                if (p.currentVoiceChatIngameSettings.voiceAudio != null)
+                    p.currentVoiceChatIngameSettings.voiceAudio.GetComponent<OccludeAudio>().overridingLowPass = false;
+            }
+
+            PlayerControllerB localP = GameNetworkManager.Instance.localPlayerController;
+            if (localP == p)
+            {
+                localP.bleedingHeavily = false;
+                localP.criticallyInjured = false;
+                if (localP.playerBodyAnimator != null) localP.playerBodyAnimator.SetBool("Limp", false);
+                localP.health = 100;
+                HUDManager.Instance.UpdateHealthUI(100, false);
+                localP.spectatedPlayerScript = null;
+                HUDManager.Instance.audioListenerLowPass.enabled = false;
+                HUDManager.Instance.RemoveSpectateUI();
+                HUDManager.Instance.gameOverAnimator.SetTrigger("revive");
+                StartOfRound.Instance.SetSpectateCameraToGameOverMode(false, localP);
+            }
+
+            RagdollGrabbableObject[] rags = UnityEngine.Object.FindObjectsOfType<RagdollGrabbableObject>();
+            for (int x = 0; x < rags.Length; x++)
+            {
+                if (!rags[x].isHeld)
+                {
+                    if (IsServer)
+                    {
+                        if (rags[x].NetworkObject.IsSpawned) rags[x].NetworkObject.Despawn();
+                        else UnityEngine.Object.Destroy(rags[x].gameObject);
+                    }
+                }
+                else if (rags[x].isHeld && rags[x].playerHeldBy != null)
+                {
+                    rags[x].playerHeldBy.DropAllHeldItems();
+                }
+            }
+            DeadBodyInfo[] bodies = UnityEngine.Object.FindObjectsOfType<DeadBodyInfo>();
+            for (int y = 0; y < bodies.Length; y++) UnityEngine.Object.Destroy(bodies[y].gameObject);
+
+            if (IsServer)
+            {
+                StartOfRound.Instance.livingPlayers++;
+                StartOfRound.Instance.allPlayersDead = false;
+            }
+
+            StartOfRound.Instance.UpdatePlayerVoiceEffects();
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestReviveServerRpc(ulong playerId)
+        {
+            var p = Helper.GetPlayer(playerId.ToString());
+            if (p == null) return;
+            if (p.isPlayerDead && CanAffordRevive())
+            {
+                DeductCredits();
+                int idx = GetPlayerIndex(p.playerUsername);
+                Vector3 spawn = GetPlayerSpawnPosition(idx, false);
+                var nbRef = new NetworkBehaviourReference(p);
+                RevivePlayer(spawn, nbRef);
             }
         }
 
-        private bool CanAffordRevive()
-		{
-			Terminal terminal = GameObject.Find("TerminalScript").GetComponent<Terminal>();
-			return terminal.groupCredits >= ReviveCost;
-		}
+        void RevivePlayer(Vector3 position, NetworkBehaviourReference netRef)
+        {
+            RevivePlayerClientRpc(position, netRef);
+            // Sync living player count to all clients after a revive:
+            SyncLivingPlayersServerRpc();
+        }
 
-		private void DeductCredits()
-		{
-			Terminal terminal = GameObject.Find("TerminalScript").GetComponent<Terminal>();
-			terminal.groupCredits -= ReviveCost;
-			SyncCreditsServerRpc(terminal.groupCredits);
-		}
+        [ServerRpc(RequireOwnership = false)]
+        void SyncLivingPlayersServerRpc()
+        {
+            int newCount = 0;
+            var so = StartOfRound.Instance;
+            foreach (var pc in so.allPlayerScripts)
+            {
+                if (pc != null && pc.isPlayerControlled && !pc.isPlayerDead) newCount++;
+            }
+            so.livingPlayers = newCount;
+            so.allPlayersDead = (newCount == 0);
+            SyncLivingPlayersClientRpc(newCount, so.allPlayersDead);
+        }
 
-		[ClientRpc]
-		private void RevivePlayerClientRpc(Vector3 spawnPosition, NetworkBehaviourReference netRef)
-		{
-			netRef.TryGet(out NetworkBehaviour playerNet);
-			PlayerControllerB player = playerNet.GetComponent<PlayerControllerB>();
-			Debug.Log($"RevivePlayerClientRpc called for player: {player.playerUsername}");
-			Debug.Log("Revive Player");
-			int playerIndex = GetPlayerIndex(player.playerUsername);
-			Debug.Log($"Player Index: {playerIndex}");
+        [ClientRpc]
+        void SyncLivingPlayersClientRpc(int newLiving, bool allDead)
+        {
+            var so = StartOfRound.Instance;
+            so.livingPlayers = newLiving;
+            so.allPlayersDead = allDead;
+        }
 
-			Debug.Log("Reviving players A");
-			player.ResetPlayerBloodObjects(player.isPlayerDead);
-			player.isClimbingLadder = false;
-			player.ResetZAndXRotation();
-			player.thisController.enabled = true;
-			player.health = 100;
-			player.disableLookInput = false;
-			Debug.Log("Reviving players B");
-			if (player.isPlayerDead)
-			{
-				player.isPlayerDead = false;
-				player.isPlayerControlled = true;
-				player.isInElevator = true;
-				player.isInHangarShipRoom = true;
-				player.isInsideFactory = false;
-				player.wasInElevatorLastFrame = false;
-				StartOfRound.Instance.SetPlayerObjectExtrapolate(false);
-				player.TeleportPlayer(spawnPosition);
-				player.setPositionOfDeadPlayer = false;
-				player.DisablePlayerModel(StartOfRound.Instance.allPlayerObjects[playerIndex], true, true);
-				player.helmetLight.enabled = false;
+        int GetPlayerIndex(string username)
+        {
+            if (StartOfRound.Instance == null) return -1;
+            PlayerControllerB[] ps = StartOfRound.Instance.allPlayerScripts;
+            for (int i = 0; i < ps.Length; i++)
+            {
+                if (ps[i] != null && ps[i].playerUsername == username) return i;
+            }
+            return -1;
+        }
 
-				Debug.Log("Reviving players C");
-				player.Crouch(crouch: false);
-				player.criticallyInjured = false;
-				if (player.playerBodyAnimator != null)
-				{
-					player.playerBodyAnimator.SetBool("Limp", false);
-				}
-				player.bleedingHeavily = false;
-				player.activatingItem = false;
-				player.twoHanded = false;
-				player.inSpecialInteractAnimation = false;
-				player.disableSyncInAnimation = false;
-				player.inAnimationWithEnemy = null;
-				player.holdingWalkieTalkie = false;
-				player.speakingToWalkieTalkie = false;
+        Vector3 GetPlayerSpawnPosition(int playerNum, bool simpleTeleport = false)
+        {
+            if (StartOfRound.Instance == null ||
+                StartOfRound.Instance.playerSpawnPositions == null)
+                return Vector3.zero;
 
-				Debug.Log("Reviving players D");
-				player.isSinking = false;
-				player.isUnderwater = false;
-				player.sinkingValue = 0f;
-				player.statusEffectAudio.Stop();
-				player.DisableJetpackControlsLocally();
-				player.health = 100;
+            if (simpleTeleport ||
+                playerNum < 0 ||
+                playerNum >= StartOfRound.Instance.playerSpawnPositions.Length)
+                return StartOfRound.Instance.playerSpawnPositions[0].position;
 
-				Debug.Log("Reviving players E");
-				player.mapRadarDotAnimator.SetBool("dead", false);
+            var spawns = StartOfRound.Instance.playerSpawnPositions;
+            if (spawns.Length == 0) return Vector3.zero;
 
-				HUDManager.Instance.gasHelmetAnimator.SetBool("gasEmitting", false);
-				player.hasBegunSpectating = false;
-				HUDManager.Instance.RemoveSpectateUI();
-				HUDManager.Instance.gameOverAnimator.SetTrigger("revive");
-				player.hinderedMultiplier = 1f;
-				player.isMovementHindered = 0;
-				player.sourcesCausingSinking = 0;
+            if (!Physics.CheckSphere(spawns[playerNum].position, 0.2f, 67108864, QueryTriggerInteraction.Ignore))
+                return spawns[playerNum].position;
 
-				Debug.Log("Reviving players E2");
-				player.reverbPreset = StartOfRound.Instance.shipReverb;
-			}
-			Debug.Log("Reviving players F");
-			SoundManager.Instance.earsRingingTimer = 0f;
-			player.voiceMuffledByEnemy = false;
-			SoundManager.Instance.playerVoicePitchTargets[playerIndex] = 1f;
-			SoundManager.Instance.SetPlayerPitch(1f, playerIndex);
-			if (player.currentVoiceChatIngameSettings == null)
-			{
-				StartOfRound.Instance.RefreshPlayerVoicePlaybackObjects();
-			}
-			if (player.currentVoiceChatIngameSettings != null)
-			{
-				if (player.currentVoiceChatIngameSettings.voiceAudio == null)
-				{
-					player.currentVoiceChatIngameSettings.InitializeComponents();
-				}
-				if (player.currentVoiceChatIngameSettings.voiceAudio == null)
-				{
-					return;
-				}
-				player.currentVoiceChatIngameSettings.voiceAudio.GetComponent<OccludeAudio>().overridingLowPass = false;
-			}
-			Debug.Log("Reviving players G");
-			PlayerControllerB playerControllerB = GameNetworkManager.Instance.localPlayerController;
-			playerControllerB.bleedingHeavily = false;
-			playerControllerB.criticallyInjured = false;
-			playerControllerB.playerBodyAnimator.SetBool("Limp", false);
-			playerControllerB.health = 100;
-			HUDManager.Instance.UpdateHealthUI(100, false);
-			playerControllerB.spectatedPlayerScript = null;
-			HUDManager.Instance.audioListenerLowPass.enabled = false;
-			Debug.Log("Reviving players H");
-			StartOfRound.Instance.SetSpectateCameraToGameOverMode(false, playerControllerB);
-			RagdollGrabbableObject[] array = UnityEngine.Object.FindObjectsOfType<RagdollGrabbableObject>();
-			for (int j = 0; j < array.Length; j++)
-			{
-				if (!array[j].isHeld)
-				{
-					if (base.IsServer)
-					{
-						if (array[j].NetworkObject.IsSpawned)
-						{
-							array[j].NetworkObject.Despawn();
-						}
-						else
-						{
-							UnityEngine.Object.Destroy(array[j].gameObject);
-						}
-					}
-				}
-				else if (array[j].isHeld && array[j].playerHeldBy != null)
-				{
-					array[j].playerHeldBy.DropAllHeldItems();
-				}
-			}
-			DeadBodyInfo[] array2 = UnityEngine.Object.FindObjectsOfType<DeadBodyInfo>();
-			for (int k = 0; k < array2.Length; k++)
-			{
-				UnityEngine.Object.Destroy(array2[k].gameObject);
-			}
-			StartOfRound.Instance.livingPlayers++;
-			StartOfRound.Instance.allPlayersDead = false;
-			StartOfRound.Instance.UpdatePlayerVoiceEffects();
-		}
+            if (!Physics.CheckSphere(spawns[playerNum].position + Vector3.up, 0.2f, 67108864, QueryTriggerInteraction.Ignore))
+                return spawns[playerNum].position + Vector3.up * 0.5f;
 
-		private int GetPlayerIndex(string playerName)
-		{
-			PlayerControllerB[] allPlayers = StartOfRound.Instance.allPlayerScripts;
-			Debug.Log($"All Players: {allPlayers}");
+            for (int i = 0; i < spawns.Length; i++)
+            {
+                if (i == playerNum) continue;
+                if (!Physics.CheckSphere(spawns[i].position, 0.12f, -67108865, QueryTriggerInteraction.Ignore))
+                    return spawns[i].position;
+                if (!Physics.CheckSphere(spawns[i].position + Vector3.up, 0.12f, 67108864, QueryTriggerInteraction.Ignore))
+                    return spawns[i].position + Vector3.up * 0.5f;
+            }
+            System.Random random = new(65);
+            float y = spawns[0].position.y;
+            for (int attempt = 0; attempt < 15; attempt++)
+            {
+                Bounds b = StartOfRound.Instance.shipInnerRoomBounds.bounds;
+                int xMin = (int)b.min.x; int xMax = (int)b.max.x;
+                int zMin = (int)b.min.z; int zMax = (int)b.max.z;
+                float randX = random.Next(xMin, xMax);
+                float randZ = random.Next(zMin, zMax);
+                Vector3 candidate = new(randX, y, randZ);
+                if (!Physics.CheckSphere(candidate, 0.12f, 67108864, QueryTriggerInteraction.Ignore))
+                    return candidate;
+            }
+            return spawns[0].position + Vector3.up * 0.5f;
+        }
 
-			for (int i = 0; i < allPlayers.Length; i++)
-			{
-				Debug.Log("Player: " + allPlayers[i]);
-				if (allPlayers[i] != null && allPlayers[i].playerUsername == playerName)
-				{
-					return i;
-				}
-			}
+        [ServerRpc(RequireOwnership = false)]
+        public void SyncCreditsServerRpc(int newCredits)
+        {
+            SyncCreditsClientRpc(newCredits);
+        }
 
-			return -1;
-		}
-
-		private Vector3 GetPlayerSpawnPosition(int playerNum, bool simpleTeleport = false)
-		{
-			Debug.Log("Get Player Spawn Position");
-			if (simpleTeleport)
-			{
-				return StartOfRound.Instance.playerSpawnPositions[0].position;
-			}
-			Debug.DrawRay(StartOfRound.Instance.playerSpawnPositions[playerNum].position, Vector3.up, Color.red, 15f);
-			if (!Physics.CheckSphere(StartOfRound.Instance.playerSpawnPositions[playerNum].position, 0.2f, 67108864, QueryTriggerInteraction.Ignore))
-			{
-				return StartOfRound.Instance.playerSpawnPositions[playerNum].position;
-			}
-			if (!Physics.CheckSphere(StartOfRound.Instance.playerSpawnPositions[playerNum].position + Vector3.up, 0.2f, 67108864, QueryTriggerInteraction.Ignore))
-			{
-				return StartOfRound.Instance.playerSpawnPositions[playerNum].position + Vector3.up * 0.5f;
-			}
-			for (int i = 0; i < StartOfRound.Instance.playerSpawnPositions.Length; i++)
-			{
-				if (i != playerNum)
-				{
-					Debug.DrawRay(StartOfRound.Instance.playerSpawnPositions[i].position, Vector3.up, Color.green, 15f);
-					if (!Physics.CheckSphere(StartOfRound.Instance.playerSpawnPositions[i].position, 0.12f, -67108865, QueryTriggerInteraction.Ignore))
-					{
-						return StartOfRound.Instance.playerSpawnPositions[i].position;
-					}
-					if (!Physics.CheckSphere(StartOfRound.Instance.playerSpawnPositions[i].position + Vector3.up, 0.12f, 67108864, QueryTriggerInteraction.Ignore))
-					{
-						return StartOfRound.Instance.playerSpawnPositions[i].position + Vector3.up * 0.5f;
-					}
-				}
-			}
-			System.Random random = new System.Random(65);
-			float y = StartOfRound.Instance.playerSpawnPositions[0].position.y;
-			for (int j = 0; j < 15; j++)
-			{
-				Vector3 vector = new Vector3(random.Next((int)StartOfRound.Instance.shipInnerRoomBounds.bounds.min.x, (int)StartOfRound.Instance.shipInnerRoomBounds.bounds.max.x), y, random.Next((int)StartOfRound.Instance.shipInnerRoomBounds.bounds.min.z, (int)StartOfRound.Instance.shipInnerRoomBounds.bounds.max.z));
-				vector = StartOfRound.Instance.shipInnerRoomBounds.transform.InverseTransformPoint(vector);
-				Debug.DrawRay(vector, Vector3.up, Color.yellow, 15f);
-				if (!Physics.CheckSphere(vector, 0.12f, 67108864, QueryTriggerInteraction.Ignore))
-				{
-					return StartOfRound.Instance.playerSpawnPositions[j].position;
-				}
-			}
-			return StartOfRound.Instance.playerSpawnPositions[0].position + Vector3.up * 0.5f;
-		}
-
-		[ServerRpc(RequireOwnership = false)]
-		public void SyncCreditsServerRpc(int newCredits)
-		{
-			SyncCreditsClientRpc(newCredits);
-		}
-
-		[ClientRpc]
-		private void SyncCreditsClientRpc(int newCredits)
-		{
-			Terminal terminal = GameObject.Find("TerminalScript").GetComponent<Terminal>();
-			terminal.groupCredits = newCredits;
-		}
-
-		void RevivePlayer(Vector3 position, NetworkBehaviourReference netRef)
-		{
-			Debug.Log($"Server: {IsServer}, Host: {IsHost}");
-			RevivePlayerClientRpc(position, netRef);
-		}
-
-		[ServerRpc(RequireOwnership = false)]
-		public void RequestReviveServerRpc(ulong playerId)
-		{
-			Debug.Log($"RequestReviveServerRpc called for playerId: {playerId}");
-			PlayerControllerB playerToRevive = Helper.GetPlayer(playerId.ToString());
-			NetworkBehaviourReference netRef = new NetworkBehaviourReference(playerToRevive);
-			if (playerToRevive != null && playerToRevive.isPlayerDead && CanAffordRevive())
-			{
-				DeductCredits();
-				int playerIndex = GetPlayerIndex(playerToRevive.playerUsername);
-				Vector3 spawnPosition = GetPlayerSpawnPosition(playerIndex, false);
-				RevivePlayer(spawnPosition, netRef);
-			}
-		}
-	}
+        [ClientRpc]
+        void SyncCreditsClientRpc(int newCredits)
+        {
+            Terminal t = GameObject.Find("TerminalScript").GetComponent<Terminal>();
+            t.groupCredits = newCredits;
+        }
+    }
 }

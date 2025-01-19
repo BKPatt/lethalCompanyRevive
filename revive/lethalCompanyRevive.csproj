@@ -19,6 +19,9 @@
         <Reference Include="BepInEx">
             <HintPath>..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\LethalCompany\profiles\Default\BepInEx\core\BepInEx.dll</HintPath>
         </Reference>
+        <Reference Include="InteractiveTerminalAPI">
+          <HintPath>..\..\..\..\Downloads\WhiteSpike-Interactive_Terminal_API-1.2.0\BepInEx\plugins\InteractiveTerminalAPI\InteractiveTerminalAPI.dll</HintPath>
+        </Reference>
         <Reference Include="LethalLib">
             <HintPath>..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\LethalCompany\profiles\Friend\BepInEx\plugins\Evaisa-LethalLib\LethalLib\LethalLib.dll</HintPath>
         </Reference>
@@ -67,6 +70,6 @@
     </ItemGroup>
 	<Target Name="NetcodePatch" AfterTargets="PostBuildEvent">
 		<Exec Command="netcode-patch -nv 1.5.2 &quot;$(TargetPath)&quot; @(ReferencePathWithRefAssemblies->'&quot;%(Identity)&quot;', ' ')" />
-		<Copy SourceFiles="$(TargetPath)" DestinationFolder="C:/Users/BrantleysPC/source/repos/lethalCompanyRevive/revive/bin/Debug/netstandard2.1"/>
+		<Copy SourceFiles="$(TargetPath)" DestinationFolder="C:/Users/BrantleysPC/source/repos/lethalCompanyRevive/revive/bin/Debug/netstandard2.1" />
 	</Target>
 </Project>

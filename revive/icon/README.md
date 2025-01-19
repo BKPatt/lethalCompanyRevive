@@ -1,11 +1,9 @@
 # Revive
-***INSTALL THE DEPENDENCIES***  
 ***ALL CLIENTS NEED THIS MOD INSTALLED*** 
-***THIS HAS NOT BEEN TESTED IN MULTIPLAYER AND IS VERY EARLY DEVELOPMENT. USE WITH DISCRETION***
 
 This adds the ability to revive a player for 100 credits.
 
-## V 0.0.1
+## V 1.0.0
 ### **[ New ]**
 
 - Type 'revive [player_name]' to revive a dead player for 100 credits
@@ -13,8 +11,8 @@ This adds the ability to revive a player for 100 credits.
 ### **[ Upcoming ]**
 
 - List dead players
-- Only revive players brought back to the ship
-
+- Add variable pricing depending on Quota or average scrap per day (unsure)
+- Add the ability to edit revive cost in the config file
 
 ## Credit
 - "Borrowed" code

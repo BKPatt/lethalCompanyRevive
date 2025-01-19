@@ -1,16 +1,11 @@
 ﻿using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
-using lethalCompanyRevive.Managers;
 using lethalCompanyRevive.Misc;
-using Newtonsoft.Json;
-using System.IO;
+using lethalCompanyRevive.UI.Application;
 using System.Reflection;
 using UnityEngine;
-using Unity.Netcode;
-using System.Security.Cryptography;
-using System.Text;
-using LethalLib.Modules;
+using InteractiveTerminalAPI.UI; // We rely on InteractiveTerminalManager
 
 namespace lethalCompanyRevive
 {
@@ -30,38 +25,32 @@ namespace lethalCompanyRevive
             instance = this;
             PatchAllMethods();
             NetcodePatch();
+
+            // We register 'revive' as an application command in the InteractiveTerminalAPI,
+            // so typing "revive" alone is recognized and launches ReviveApplication.
+            // Meanwhile, "revive <player>" is still handled by TerminalPatcher for direct revives.
+            InteractiveTerminalManager.RegisterApplication<ReviveApplication>("revive", caseSensitive: false);
+
             Logger.LogInfo("Revive functionality has been initialized.");
         }
 
-        private void PatchAllMethods()
+        void PatchAllMethods()
         {
             harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
 
-        private static void NetcodePatch()
+        static void NetcodePatch()
         {
             var types = Assembly.GetExecutingAssembly().GetTypes();
             foreach (var type in types)
             {
-                var methods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                var methods = type.GetMethods(
+                    BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
                 foreach (var method in methods)
                 {
                     var attributes = method.GetCustomAttributes(typeof(RuntimeInitializeOnLoadMethodAttribute), false);
-                    if (attributes.Length > 0)
-                    {
-                        method.Invoke(null, null);
-                    }
+                    if (attributes.Length > 0) method.Invoke(null, null);
                 }
-            }
-        }
-
-        private string GetJsonContent()
-        {
-            var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = "lethalCompanyRevive.Misc.InfoStrings.json";
-            using (StreamReader reader = new StreamReader(assembly.GetManifestResourceStream(resourceName)))
-            {
-                return reader.ReadToEnd();
             }
         }
     }
