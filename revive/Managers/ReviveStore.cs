@@ -1,15 +1,33 @@
-﻿using GameNetcodeStuff;
+﻿﻿using GameNetcodeStuff;
 using lethalCompanyRevive.Helpers;
 using lethalCompanyRevive.Misc;
 using Unity.Netcode;
 using UnityEngine;
+
+// This file has been updated to use a dynamic revive cost:
+// cost = (TimeOfDay.Instance.profitQuota / (StartOfRound.Instance.connectedPlayersAmount + 1))
 
 namespace lethalCompanyRevive.Managers
 {
     public class ReviveStore : NetworkBehaviour
     {
         public static ReviveStore Instance { get; private set; }
-        const int ReviveCost = 100;
+
+        // Instead of a fixed 100-credit cost, we compute it dynamically.
+        // Example formula: profitQuota / totalPlayers
+        int GetReviveCost()
+        {
+            // If TimeOfDay or StartOfRound is unexpectedly null, default to 100 just to avoid errors.
+            if (TimeOfDay.Instance == null || StartOfRound.Instance == null)
+                return 100;
+
+            int totalPlayers = StartOfRound.Instance.connectedPlayersAmount + 1;
+            float quota = TimeOfDay.Instance.profitQuota;
+            // Convert to int. If quota < totalPlayers, cost can be zero with integer division.
+            // We'll ensure at least 1 credit cost if needed:
+            int cost = (int)(quota / totalPlayers);
+            return cost < 1 ? 1 : cost;
+        }
 
         public override void OnNetworkSpawn()
         {
@@ -20,13 +38,13 @@ namespace lethalCompanyRevive.Managers
         bool CanAffordRevive()
         {
             Terminal t = GameObject.Find("TerminalScript").GetComponent<Terminal>();
-            return t.groupCredits >= ReviveCost;
+            return t.groupCredits >= GetReviveCost();
         }
 
         void DeductCredits()
         {
             Terminal t = GameObject.Find("TerminalScript").GetComponent<Terminal>();
-            t.groupCredits -= ReviveCost;
+            t.groupCredits -= GetReviveCost();
             SyncCreditsServerRpc(t.groupCredits);
         }
 
@@ -180,7 +198,6 @@ namespace lethalCompanyRevive.Managers
         void RevivePlayer(Vector3 position, NetworkBehaviourReference netRef)
         {
             RevivePlayerClientRpc(position, netRef);
-            // Sync living player count to all clients after a revive:
             SyncLivingPlayersServerRpc();
         }
 

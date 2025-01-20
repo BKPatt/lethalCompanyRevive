@@ -1,4 +1,4 @@
-﻿using InteractiveTerminalAPI.UI;
+﻿﻿using InteractiveTerminalAPI.UI;
 using InteractiveTerminalAPI.UI.Application;
 using InteractiveTerminalAPI.UI.Cursor;
 using InteractiveTerminalAPI.UI.Screen;
@@ -9,11 +9,26 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
+// This file now computes revive cost dynamically, matching the same formula.
+
 namespace lethalCompanyRevive.UI.Application
 {
     internal class ReviveApplication : InteractiveTerminalApplication
     {
-        const int REVIVE_COST = 100;
+        // Instead of a fixed const, compute cost at runtime.
+        int ReviveCost
+        {
+            get
+            {
+                if (TimeOfDay.Instance == null || StartOfRound.Instance == null)
+                    return 100; // fallback
+                int totalPlayers = StartOfRound.Instance.connectedPlayersAmount + 1;
+                float quota = TimeOfDay.Instance.profitQuota;
+                int cost = (int)(quota / totalPlayers);
+                return cost < 1 ? 1 : cost;
+            }
+        }
+
         CursorMenu mainMenu;
         IScreen mainScreen;
 
@@ -53,26 +68,34 @@ namespace lethalCompanyRevive.UI.Application
                 return;
             }
 
+            // Build menu items dynamically
             CursorElement[] elements = new CursorElement[deadPlayers.Length + 2];
+            int cost = ReviveCost;
+
+            // "Revive All"
             elements[0] = CursorElement.Create(
-                $"Revive All ({deadPlayers.Length * REVIVE_COST})",
+                $"Revive All ({deadPlayers.Length * cost})",
                 "",
                 () => ConfirmReviveAll(deadPlayers),
-                (elem) => CanAfford(deadPlayers.Length * REVIVE_COST),
+                (elem) => CanAfford(deadPlayers.Length * cost),
                 true
             );
+
+            // Individual dead players
             for (int i = 0; i < deadPlayers.Length; i++)
             {
                 var p = deadPlayers[i];
-                string label = $"Revive {p.playerUsername} ({REVIVE_COST})";
+                string label = $"Revive {p.playerUsername} ({cost})";
                 elements[i + 1] = CursorElement.Create(
                     label,
                     "",
                     () => ConfirmReviveSingle(p),
-                    (elem) => CanAfford(REVIVE_COST),
+                    (elem) => CanAfford(cost),
                     true
                 );
             }
+
+            // "Exit"
             elements[elements.Length - 1] = CursorElement.Create("Exit", "", () => CloseUI());
 
             mainMenu = CursorMenu.Create(0, '>', elements);
@@ -89,12 +112,13 @@ namespace lethalCompanyRevive.UI.Application
 
         void ConfirmReviveSingle(PlayerControllerB p)
         {
-            if (!CanAfford(REVIVE_COST))
+            int cost = ReviveCost;
+            if (!CanAfford(cost))
             {
-                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "Not enough credits.");
+                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), $"Not enough credits.");
                 return;
             }
-            Confirm("Revive", $"Revive {p.playerUsername} for {REVIVE_COST}?",
+            Confirm("Revive", $"Revive {p.playerUsername} for {cost}?",
                 () => DoReviveSingle(p),
                 () => SwitchScreen(mainScreen, mainMenu, true));
         }
@@ -114,7 +138,7 @@ namespace lethalCompanyRevive.UI.Application
 
         void ConfirmReviveAll(PlayerControllerB[] players)
         {
-            int cost = players.Length * REVIVE_COST;
+            int cost = ReviveCost * players.Length;
             if (!CanAfford(cost))
             {
                 ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "Not enough credits.");

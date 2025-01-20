@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+﻿﻿using HarmonyLib;
 using lethalCompanyRevive.Managers;
 using lethalCompanyRevive.Helpers;
 using GameNetcodeStuff;
@@ -21,7 +21,7 @@ namespace lethalCompanyRevive.Patches
                 .Trim();
             string[] parts = text.Split(' ');
 
-            // If exactly 2 parts: 'revive <playerName>', do direct single revive
+            // 'revive <playerName>'
             if (parts.Length == 2 && parts[0].Equals("revive", StringComparison.OrdinalIgnoreCase))
             {
                 try
@@ -38,11 +38,23 @@ namespace lethalCompanyRevive.Patches
                         __result = CreateTerminalNode($"Player '{playerName}' is not dead.", true);
                         return;
                     }
-                    if (__instance.groupCredits < 100)
+
+                    // Dynamic revive cost now
+                    int cost = 100; // fallback
+                    if (TimeOfDay.Instance != null && StartOfRound.Instance != null)
                     {
-                        __result = CreateTerminalNode($"Not enough credits {__instance.groupCredits}/100", true);
+                        int totalPlayers = StartOfRound.Instance.connectedPlayersAmount + 1;
+                        float quota = TimeOfDay.Instance.profitQuota;
+                        int dynamicCost = (int)(quota / totalPlayers);
+                        cost = dynamicCost < 1 ? 1 : dynamicCost;
+                    }
+
+                    if (__instance.groupCredits < cost)
+                    {
+                        __result = CreateTerminalNode($"Not enough credits {__instance.groupCredits}/{cost}", true);
                         return;
                     }
+
                     ulong pid = p.playerClientId;
 
                     if (upgradeBus == null)
