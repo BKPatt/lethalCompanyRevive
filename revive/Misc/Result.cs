@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace lethalCompanyRevive.Misc
+﻿namespace lethalCompanyRevive.Misc
 {
     public readonly ref struct Result
     {
@@ -15,10 +11,6 @@ namespace lethalCompanyRevive.Misc
             Message = message;
         }
 
-        public Result(string message) : this(false, message)
-        {
-        }
+        public Result(string message) : this(false, message) { }
     }
-
 }
-

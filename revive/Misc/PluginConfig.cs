@@ -1,10 +1,4 @@
 ﻿using BepInEx.Configuration;
-using UnityEngine;
-using System.Drawing;
-using System.Collections.Generic;
-using System;
-using UnityEngine.InputSystem;
-
 
 namespace lethalCompanyRevive.Misc
 {
@@ -12,22 +6,53 @@ namespace lethalCompanyRevive.Misc
     {
         readonly ConfigFile configFile;
 
-        public bool REVIVE { get; set; }
+        public ConfigEntry<bool> EnableRevive;
+        public ConfigEntry<int> BaseReviveCost;
+        public ConfigEntry<string> ReviveCostAlgorithm;
+        public ConfigEntry<bool> EnableMaxRevivesPerDay;
+        public ConfigEntry<int> MaxRevivesPerDay;
 
-        public PluginConfig(ConfigFile cfg)
+        public PluginConfig(ConfigFile file)
         {
-            configFile = cfg;
-        }
-
-        private T ConfigEntry<T>(string section, string key, T defaultVal, string description)
-        {
-            return configFile.Bind(section, key, defaultVal, description).Value;
+            configFile = file;
         }
 
         public void InitBindings()
         {
-            REVIVE = ConfigEntry("Revive Players","Revive all players in the ship.", true, "");
-        }
+            EnableRevive = configFile.Bind(
+                "General",
+                "EnableRevive",
+                true,
+                "Enable or disable the entire revive feature."
+            );
 
+            BaseReviveCost = configFile.Bind(
+                "Costs",
+                "BaseReviveCost",
+                100,
+                "Base cost used in the revive formula. Only used for Flat and Exponential"
+            );
+
+            ReviveCostAlgorithm = configFile.Bind(
+                "Costs",
+                "ReviveCostAlgorithm",
+                "Quota",
+                "How the revive cost is calculated: Flat, Exponential, or Quota. Exponential is untested"
+            );
+
+            EnableMaxRevivesPerDay = configFile.Bind(
+                "Limits",
+                "EnableMaxRevivesPerDay",
+                false,
+                "If true, limits how many revives can happen each real-life day."
+            );
+
+            MaxRevivesPerDay = configFile.Bind(
+                "Limits",
+                "MaxRevivesPerDay",
+                3,
+                "Max revives allowed per day (if EnableMaxRevivesPerDay is true)."
+            );
+        }
     }
 }

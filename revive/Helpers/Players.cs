@@ -7,24 +7,19 @@ namespace lethalCompanyRevive.Helpers
     public static partial class Helper
     {
         public static PlayerControllerB? LocalPlayer => GameNetworkManager.Instance.localPlayerController;
-
-        public static PlayerControllerB[]? Players => Helper.StartOfRound?.allPlayerScripts;
+        public static PlayerControllerB[]? Players => StartOfRound?.allPlayerScripts;
 
         public static PlayerControllerB? GetPlayer(string playerNameOrId)
         {
-            PlayerControllerB[]? players = Helper.Players;
-
+            var players = Players;
             Debug.Log($"Players: {players}");
-
             if (players == null || players.Length == 0)
             {
                 Debug.Log("No players found.");
                 return null;
             }
-
             Debug.Log($"Searching for player with name or ID: {playerNameOrId}");
-
-            PlayerControllerB? playerByName = players.FirstOrDefault(player =>
+            var playerByName = players.FirstOrDefault(player =>
             {
                 if (player != null)
                 {
@@ -33,14 +28,12 @@ namespace lethalCompanyRevive.Helpers
                 }
                 return false;
             });
-
             if (playerByName != null)
             {
                 Debug.Log($"Found player by name: {playerByName.playerUsername}");
                 return playerByName;
             }
-
-            PlayerControllerB? playerById = players.FirstOrDefault(player =>
+            var playerById = players.FirstOrDefault(player =>
             {
                 if (player != null)
                 {
@@ -49,17 +42,15 @@ namespace lethalCompanyRevive.Helpers
                 }
                 return false;
             });
-
             if (playerById != null)
             {
                 Debug.Log($"Found player by ID: {playerById.playerUsername}");
                 return playerById;
             }
-
             Debug.Log("Player not found.");
             return null;
         }
 
-        public static PlayerControllerB? GetPlayer(int playerId) => Helper.GetPlayer(playerId.ToString());
+        public static PlayerControllerB? GetPlayer(int playerId) => GetPlayer(playerId.ToString());
     }
 }
