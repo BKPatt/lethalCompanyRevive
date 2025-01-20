@@ -24,27 +24,34 @@ namespace lethalCompanyRevive.UI.Application
                 CloseUI();
                 return;
             }
+
             var players = Helper.Players;
             if (players == null || players.Length == 0)
             {
                 ShowNoPlayersUI();
                 return;
             }
+
             var deadPlayers = players.Where(p => p != null && p.isPlayerDead).ToArray();
             if (deadPlayers.Length == 0)
             {
                 ShowNoDeadPlayersUI();
                 return;
             }
-            CursorElement[] elements = new CursorElement[deadPlayers.Length + 2];
+
             int singleCost = ComputeDisplayCost();
+            CursorElement[] elements = new CursorElement[deadPlayers.Length + 2];
+
+            // "Revive All"
             elements[0] = CursorElement.Create(
                 $"Revive All ({deadPlayers.Length * singleCost})",
                 "",
                 () => ConfirmReviveAll(deadPlayers),
-                (elem) => CanAfford(deadPlayers.Length * singleCost),
+                (elem) => CanAffordWithDailyLimit(deadPlayers.Length * singleCost),
                 true
             );
+
+            // Individual revive
             for (int i = 0; i < deadPlayers.Length; i++)
             {
                 var p = deadPlayers[i];
@@ -53,11 +60,14 @@ namespace lethalCompanyRevive.UI.Application
                     label,
                     "",
                     () => ConfirmReviveSingle(p, singleCost),
-                    (elem) => CanAfford(singleCost),
+                    (elem) => CanAffordWithDailyLimit(singleCost),
                     true
                 );
             }
+
+            // Exit
             elements[elements.Length - 1] = CursorElement.Create("Exit", "", () => CloseUI());
+
             mainMenu = CursorMenu.Create(0, '>', elements);
             mainScreen = BoxedScreen.Create(
                 "Revive",
@@ -93,17 +103,21 @@ namespace lethalCompanyRevive.UI.Application
             }
         }
 
-        bool CanAfford(int cost)
+        // Minimal helper: daily-limit + cost check
+        bool CanAffordWithDailyLimit(int neededCredits)
         {
+            if (ReviveStore.Instance != null && !ReviveStore.Instance.CanReviveNow())
+                return false;
+
             var t = Helper.Terminal;
-            return (t != null && t.groupCredits >= cost);
+            return (t != null && t.groupCredits >= neededCredits);
         }
 
         void ConfirmReviveSingle(PlayerControllerB p, int cost)
         {
-            if (!CanAfford(cost))
+            if (!CanAffordWithDailyLimit(cost))
             {
-                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "Not enough credits.");
+                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "Not enough credits or daily limit reached.");
                 return;
             }
             Confirm(
@@ -129,11 +143,12 @@ namespace lethalCompanyRevive.UI.Application
         {
             int singleCost = ComputeDisplayCost();
             int totalCost = players.Length * singleCost;
-            if (!CanAfford(totalCost))
+            if (!CanAffordWithDailyLimit(totalCost))
             {
-                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "Not enough credits.");
+                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "Not enough credits or daily limit reached.");
                 return;
             }
+
             StringBuilder sb = new StringBuilder("Revive all:\n\n");
             foreach (var pl in players) sb.AppendLine(pl.playerUsername);
             sb.AppendLine($"\nTotal Cost: {totalCost}");

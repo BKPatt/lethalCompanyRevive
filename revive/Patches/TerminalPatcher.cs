@@ -20,6 +20,7 @@ namespace lethalCompanyRevive.Patches
                 .Substring(__instance.screenText.text.Length - __instance.textAdded)
                 .Trim();
 
+            // "revive <player>"
             string[] parts = text.Split(' ');
             if (parts.Length == 2 && parts[0].Equals("revive", StringComparison.OrdinalIgnoreCase))
             {
@@ -37,12 +38,15 @@ namespace lethalCompanyRevive.Patches
                         __result = CreateTerminalNode($"Player '{playerName}' is not dead.", true);
                         return;
                     }
+
                     int dynamicCost = ComputeConsoleCost();
-                    if (__instance.groupCredits < dynamicCost)
+                    // Here is our minimal addition: check daily limit in the same place as cost
+                    if (!CanAffordWithDailyLimit(__instance.groupCredits, dynamicCost))
                     {
-                        __result = CreateTerminalNode($"Not enough credits {__instance.groupCredits}/{dynamicCost}", true);
+                        __result = CreateTerminalNode($"Not enough credits or daily limit reached ({__instance.groupCredits}/{dynamicCost}).", true);
                         return;
                     }
+
                     ulong pid = p.playerClientId;
                     if (upgradeBus == null)
                     {
@@ -86,6 +90,14 @@ namespace lethalCompanyRevive.Patches
                     if (cost < 1) cost = 1;
                     return cost;
             }
+        }
+
+        static bool CanAffordWithDailyLimit(int currentCredits, int neededCredits)
+        {
+            if (ReviveStore.Instance != null && !ReviveStore.Instance.CanReviveNow()) 
+                return false;
+
+            return currentCredits >= neededCredits;
         }
 
         static TerminalNode CreateTerminalNode(string txt, bool clear)

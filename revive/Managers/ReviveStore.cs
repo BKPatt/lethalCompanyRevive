@@ -46,7 +46,7 @@ namespace lethalCompanyRevive.Managers
             return true;
         }
 
-        bool CanReviveNow()
+        public bool CanReviveNow()
         {
             if (!Plugin.cfg.EnableRevive.Value) return false;
             if (Plugin.cfg.EnableMaxRevivesPerDay.Value)
