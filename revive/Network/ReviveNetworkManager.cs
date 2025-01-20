@@ -17,7 +17,6 @@ namespace lethalCompanyRevive.Network
             if (networkPrefab != null) return;
             networkPrefab = LethalLib.Modules.NetworkPrefabs.CreateNetworkPrefab("ReviveStore");
             networkPrefab.AddComponent<ReviveStore>();
-            networkPrefab.AddComponent<UpgradeBus>();
             NetworkManager.Singleton.AddNetworkPrefab(networkPrefab);
         }
 

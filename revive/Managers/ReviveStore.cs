@@ -1,4 +1,4 @@
-﻿﻿using GameNetcodeStuff;
+﻿﻿﻿using GameNetcodeStuff;
 using lethalCompanyRevive.Helpers;
 using lethalCompanyRevive.Misc;
 using Unity.Netcode;
@@ -13,14 +13,12 @@ namespace lethalCompanyRevive.Managers
 
         public override void OnNetworkSpawn()
         {
-            // If there's an old instance, despawn it so we only keep this new one.
             if (NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsServer)
             {
                 if (Instance != null && Instance != this)
                 {
                     var oldNet = Instance.GetComponent<NetworkObject>();
-                    if (oldNet != null && oldNet.IsSpawned)
-                        oldNet.Despawn();
+                    if (oldNet != null && oldNet.IsSpawned) oldNet.Despawn(true);
                 }
             }
             Instance = this;
@@ -57,13 +55,10 @@ namespace lethalCompanyRevive.Managers
 
         public bool CanReviveNow()
         {
-            if (!Plugin.cfg.EnableRevive.Value)
-                return false;
-
+            if (!Plugin.cfg.EnableRevive.Value) return false;
             if (Plugin.cfg.EnableMaxRevivesPerDay.Value &&
                 dailyRevivesUsed >= Plugin.cfg.MaxRevivesPerDay.Value)
                 return false;
-
             return true;
         }
 
@@ -166,8 +161,7 @@ namespace lethalCompanyRevive.Managers
                 plr.isInsideFactory = false;
                 plr.parentedToElevatorLastFrame = false;
                 plr.overrideGameOverSpectatePivot = null;
-                if (plr.IsOwner)
-                    StartOfRound.Instance.SetPlayerObjectExtrapolate(false);
+                if (plr.IsOwner) StartOfRound.Instance.SetPlayerObjectExtrapolate(false);
 
                 plr.TeleportPlayer(spawnPosition);
                 plr.setPositionOfDeadPlayer = false;
@@ -274,8 +268,7 @@ namespace lethalCompanyRevive.Managers
             int newCount = 0;
             foreach (var pc in so.allPlayerScripts)
             {
-                if (pc != null && pc.isPlayerControlled && !pc.isPlayerDead)
-                    newCount++;
+                if (pc != null && pc.isPlayerControlled && !pc.isPlayerDead) newCount++;
             }
             so.livingPlayers = newCount;
             so.allPlayersDead = (newCount == 0);
@@ -306,8 +299,7 @@ namespace lethalCompanyRevive.Managers
         Vector3 GetPlayerSpawnPosition(int playerNum, bool simpleTeleport)
         {
             var so = StartOfRound.Instance;
-            if (so == null || so.playerSpawnPositions == null)
-                return Vector3.zero;
+            if (so == null || so.playerSpawnPositions == null) return Vector3.zero;
 
             if (simpleTeleport ||
                 playerNum < 0 ||
@@ -349,6 +341,11 @@ namespace lethalCompanyRevive.Managers
                     return candidate;
             }
             return spawns[0].position + Vector3.up * 0.5f;
+        }
+
+        public void ResetAllValues()
+        {
+            dailyRevivesUsed = 0;
         }
     }
 }

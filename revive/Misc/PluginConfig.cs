@@ -30,14 +30,14 @@ namespace lethalCompanyRevive.Misc
                 "Costs",
                 "BaseReviveCost",
                 100,
-                "Base cost used in the revive formula."
+                "Base cost used in the revive formula. Only used for Flat and Exponential"
             );
 
             ReviveCostAlgorithm = configFile.Bind(
                 "Costs",
                 "ReviveCostAlgorithm",
                 "Quota",
-                "How the revive cost is calculated: Flat, Exponential, or Quota"
+                "How the revive cost is calculated: Flat, Exponential, or Quota. Exponential is untested"
             );
 
             EnableMaxRevivesPerDay = configFile.Bind(

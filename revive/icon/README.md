@@ -1,18 +1,13 @@
 # Revive
 ***ALL CLIENTS NEED THIS MOD INSTALLED*** 
 
-This adds the ability to revive a player for 100 credits.
+This adds the ability to revive a player for a configurable amount of credits.
 
 ## V 1.0.0
 ### **[ New ]**
 
-- Type 'revive [player_name]' to revive a dead player for 100 credits
-
-### **[ Upcoming ]**
-
-- List dead players
-- Add variable pricing depending on Quota or average scrap per day (unsure)
-- Add the ability to edit revive cost in the config file
+- Type 'revive' to pull up the revive UI
+- Price is either flat (configurable), based on quota/{num_players}, or exponential
 
 ## Credit
 - "Borrowed" code
