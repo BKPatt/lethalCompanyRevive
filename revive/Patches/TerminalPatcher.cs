@@ -19,9 +19,8 @@ namespace lethalCompanyRevive.Patches
             string text = __instance.screenText.text
                 .Substring(__instance.screenText.text.Length - __instance.textAdded)
                 .Trim();
-            string[] parts = text.Split(' ');
 
-            // 'revive <playerName>'
+            string[] parts = text.Split(' ');
             if (parts.Length == 2 && parts[0].Equals("revive", StringComparison.OrdinalIgnoreCase))
             {
                 try
@@ -38,25 +37,13 @@ namespace lethalCompanyRevive.Patches
                         __result = CreateTerminalNode($"Player '{playerName}' is not dead.", true);
                         return;
                     }
-
-                    // Dynamic revive cost now
-                    int cost = 100; // fallback
-                    if (TimeOfDay.Instance != null && StartOfRound.Instance != null)
+                    int dynamicCost = ComputeConsoleCost();
+                    if (__instance.groupCredits < dynamicCost)
                     {
-                        int totalPlayers = StartOfRound.Instance.connectedPlayersAmount + 1;
-                        float quota = TimeOfDay.Instance.profitQuota;
-                        int dynamicCost = (int)(quota / totalPlayers);
-                        cost = dynamicCost < 1 ? 1 : dynamicCost;
-                    }
-
-                    if (__instance.groupCredits < cost)
-                    {
-                        __result = CreateTerminalNode($"Not enough credits {__instance.groupCredits}/{cost}", true);
+                        __result = CreateTerminalNode($"Not enough credits {__instance.groupCredits}/{dynamicCost}", true);
                         return;
                     }
-
                     ulong pid = p.playerClientId;
-
                     if (upgradeBus == null)
                     {
                         GameObject busObj = GameObject.Find("UpgradeBus");
@@ -76,6 +63,28 @@ namespace lethalCompanyRevive.Patches
                 {
                     Debug.LogError($"Revive error: {e}");
                 }
+            }
+        }
+
+        static int ComputeConsoleCost()
+        {
+            string algo = Plugin.cfg.ReviveCostAlgorithm.Value.ToLower();
+            int baseCost = Plugin.cfg.BaseReviveCost.Value;
+            switch (algo)
+            {
+                case "flat":
+                    return baseCost;
+                case "exponential":
+                    return baseCost;
+                case "quota":
+                default:
+                    if (TimeOfDay.Instance == null || StartOfRound.Instance == null)
+                        return 100;
+                    float quota = TimeOfDay.Instance.profitQuota;
+                    int totalPlayers = StartOfRound.Instance.connectedPlayersAmount + 1;
+                    int cost = (int)(quota / totalPlayers);
+                    if (cost < 1) cost = 1;
+                    return cost;
             }
         }
 

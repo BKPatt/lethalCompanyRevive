@@ -4,152 +4,145 @@ using InteractiveTerminalAPI.UI.Cursor;
 using InteractiveTerminalAPI.UI.Screen;
 using lethalCompanyRevive.Helpers;
 using lethalCompanyRevive.Managers;
+using lethalCompanyRevive.Misc;
 using GameNetcodeStuff;
 using System.Linq;
 using System.Text;
 using UnityEngine;
 
-// This file now computes revive cost dynamically, matching the same formula.
-
 namespace lethalCompanyRevive.UI.Application
 {
     internal class ReviveApplication : InteractiveTerminalApplication
     {
-        // Instead of a fixed const, compute cost at runtime.
-        int ReviveCost
-        {
-            get
-            {
-                if (TimeOfDay.Instance == null || StartOfRound.Instance == null)
-                    return 100; // fallback
-                int totalPlayers = StartOfRound.Instance.connectedPlayersAmount + 1;
-                float quota = TimeOfDay.Instance.profitQuota;
-                int cost = (int)(quota / totalPlayers);
-                return cost < 1 ? 1 : cost;
-            }
-        }
-
         CursorMenu mainMenu;
         IScreen mainScreen;
 
         public override void Initialization()
         {
+            if (!Plugin.cfg.EnableRevive.Value)
+            {
+                CloseUI();
+                return;
+            }
             var players = Helper.Players;
             if (players == null || players.Length == 0)
             {
-                var menu = CursorMenu.Create(0, '>', new[]
-                {
-                    CursorElement.Create("Exit", "", () => CloseUI())
-                });
-                mainScreen = BoxedScreen.Create("Revive", new ITextElement[]
-                {
-                    TextElement.Create("No players found."),
-                    TextElement.Create(" "),
-                    menu
-                });
-                SwitchScreen(mainScreen, menu, true);
+                ShowNoPlayersUI();
                 return;
             }
-
             var deadPlayers = players.Where(p => p != null && p.isPlayerDead).ToArray();
             if (deadPlayers.Length == 0)
             {
-                var menu = CursorMenu.Create(0, '>', new[]
-                {
-                    CursorElement.Create("Exit", "", () => CloseUI())
-                });
-                mainScreen = BoxedScreen.Create("Revive", new ITextElement[]
-                {
-                    TextElement.Create("No dead players to revive."),
-                    TextElement.Create(" "),
-                    menu
-                });
-                SwitchScreen(mainScreen, menu, true);
+                ShowNoDeadPlayersUI();
                 return;
             }
-
-            // Build menu items dynamically
             CursorElement[] elements = new CursorElement[deadPlayers.Length + 2];
-            int cost = ReviveCost;
-
-            // "Revive All"
+            int singleCost = ComputeDisplayCost();
             elements[0] = CursorElement.Create(
-                $"Revive All ({deadPlayers.Length * cost})",
+                $"Revive All ({deadPlayers.Length * singleCost})",
                 "",
                 () => ConfirmReviveAll(deadPlayers),
-                (elem) => CanAfford(deadPlayers.Length * cost),
+                (elem) => CanAfford(deadPlayers.Length * singleCost),
                 true
             );
-
-            // Individual dead players
             for (int i = 0; i < deadPlayers.Length; i++)
             {
                 var p = deadPlayers[i];
-                string label = $"Revive {p.playerUsername} ({cost})";
+                string label = $"Revive {p.playerUsername} ({singleCost})";
                 elements[i + 1] = CursorElement.Create(
                     label,
                     "",
-                    () => ConfirmReviveSingle(p),
-                    (elem) => CanAfford(cost),
+                    () => ConfirmReviveSingle(p, singleCost),
+                    (elem) => CanAfford(singleCost),
                     true
                 );
             }
-
-            // "Exit"
             elements[elements.Length - 1] = CursorElement.Create("Exit", "", () => CloseUI());
-
             mainMenu = CursorMenu.Create(0, '>', elements);
-            mainScreen = BoxedScreen.Create("Revive", new ITextElement[]
-            {
-                TextElement.Create("Select a dead player to revive or revive them all."),
-                TextElement.Create(" "),
-                mainMenu
-            });
+            mainScreen = BoxedScreen.Create(
+                "Revive",
+                new ITextElement[]
+                {
+                    TextElement.Create("Select a dead player or revive them all."),
+                    TextElement.Create(" "),
+                    mainMenu
+                }
+            );
             SwitchScreen(mainScreen, mainMenu, true);
         }
 
-        bool CanAfford(int cost) => (Helper.Terminal != null && Helper.Terminal.groupCredits >= cost);
-
-        void ConfirmReviveSingle(PlayerControllerB p)
+        int ComputeDisplayCost()
         {
-            int cost = ReviveCost;
-            if (!CanAfford(cost))
+            string algo = Plugin.cfg.ReviveCostAlgorithm.Value.ToLower();
+            int baseCost = Plugin.cfg.BaseReviveCost.Value;
+            switch (algo)
             {
-                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), $"Not enough credits.");
-                return;
-            }
-            Confirm("Revive", $"Revive {p.playerUsername} for {cost}?",
-                () => DoReviveSingle(p),
-                () => SwitchScreen(mainScreen, mainMenu, true));
-        }
-
-        void DoReviveSingle(PlayerControllerB p)
-        {
-            if (p != null && p.isPlayerDead && ReviveStore.Instance != null)
-            {
-                ReviveStore.Instance.RequestReviveServerRpc(p.playerClientId);
-                ErrorMessage("Revive", () => CloseUI(), $"Reviving {p.playerUsername}...");
-            }
-            else
-            {
-                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "Could not revive.");
+                case "flat":
+                    return baseCost;
+                case "exponential":
+                    return baseCost;
+                case "quota":
+                default:
+                    if (TimeOfDay.Instance == null || StartOfRound.Instance == null)
+                        return 100;
+                    float quota = TimeOfDay.Instance.profitQuota;
+                    int totalPlayers = StartOfRound.Instance.connectedPlayersAmount + 1;
+                    int cost = (int)(quota / totalPlayers);
+                    if (cost < 1) cost = 1;
+                    return cost;
             }
         }
 
-        void ConfirmReviveAll(PlayerControllerB[] players)
+        bool CanAfford(int cost)
         {
-            int cost = ReviveCost * players.Length;
+            var t = Helper.Terminal;
+            return (t != null && t.groupCredits >= cost);
+        }
+
+        void ConfirmReviveSingle(PlayerControllerB p, int cost)
+        {
             if (!CanAfford(cost))
             {
                 ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "Not enough credits.");
                 return;
             }
-            StringBuilder sb = new StringBuilder("Revive all of:\n\n");
+            Confirm(
+                "Revive",
+                $"Revive {p.playerUsername} for {cost} credits?",
+                () => DoReviveSingle(p),
+                () => SwitchScreen(mainScreen, mainMenu, true)
+            );
+        }
+
+        void DoReviveSingle(PlayerControllerB p)
+        {
+            if (ReviveStore.Instance == null)
+            {
+                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "ReviveStore missing.");
+                return;
+            }
+            ReviveStore.Instance.RequestReviveServerRpc(p.playerClientId);
+            ErrorMessage("Revive", () => CloseUI(), $"Reviving {p.playerUsername}...");
+        }
+
+        void ConfirmReviveAll(PlayerControllerB[] players)
+        {
+            int singleCost = ComputeDisplayCost();
+            int totalCost = players.Length * singleCost;
+            if (!CanAfford(totalCost))
+            {
+                ErrorMessage("Revive", () => SwitchScreen(mainScreen, mainMenu, true), "Not enough credits.");
+                return;
+            }
+            StringBuilder sb = new StringBuilder("Revive all:\n\n");
             foreach (var pl in players) sb.AppendLine(pl.playerUsername);
-            sb.AppendLine($"\nTotal Cost: {cost}");
-            Confirm("Revive All", sb.ToString(),
+            sb.AppendLine($"\nTotal Cost: {totalCost}");
+            Confirm(
+                "Revive All",
+                sb.ToString(),
                 () => DoReviveAll(players),
-                () => SwitchScreen(mainScreen, mainMenu, true));
+                () => SwitchScreen(mainScreen, mainMenu, true)
+            );
         }
 
         void DoReviveAll(PlayerControllerB[] players)
@@ -167,10 +160,40 @@ namespace lethalCompanyRevive.UI.Application
             ErrorMessage("Revive", () => CloseUI(), "Reviving all dead players...");
         }
 
+        void ShowNoPlayersUI()
+        {
+            var menu = CursorMenu.Create(0, '>', new[]
+            {
+                CursorElement.Create("Exit", "", () => CloseUI())
+            });
+            mainScreen = BoxedScreen.Create("Revive", new ITextElement[]
+            {
+                TextElement.Create("No players found."),
+                TextElement.Create(" "),
+                menu
+            });
+            SwitchScreen(mainScreen, menu, true);
+        }
+
+        void ShowNoDeadPlayersUI()
+        {
+            var menu = CursorMenu.Create(0, '>', new[]
+            {
+                CursorElement.Create("Exit", "", () => CloseUI())
+            });
+            mainScreen = BoxedScreen.Create("Revive", new ITextElement[]
+            {
+                TextElement.Create("No dead players to revive."),
+                TextElement.Create(" "),
+                menu
+            });
+            SwitchScreen(mainScreen, menu, true);
+        }
+
         void CloseUI()
         {
             if (InteractiveTerminalManager.Instance != null)
-                UnityEngine.Object.Destroy(InteractiveTerminalManager.Instance.gameObject);
+                Object.Destroy(InteractiveTerminalManager.Instance.gameObject);
         }
     }
 }

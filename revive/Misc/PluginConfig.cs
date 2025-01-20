@@ -5,21 +5,54 @@ namespace lethalCompanyRevive.Misc
     public class PluginConfig
     {
         readonly ConfigFile configFile;
-        public bool REVIVE { get; set; }
 
-        public PluginConfig(ConfigFile cfg)
-        {
-            configFile = cfg;
-        }
+        public ConfigEntry<bool> EnableRevive;
+        public ConfigEntry<int> BaseReviveCost;
+        public ConfigEntry<string> ReviveCostAlgorithm;
+        public ConfigEntry<bool> EnableMaxRevivesPerDay;
+        public ConfigEntry<int> MaxRevivesPerDay;
 
-        T ConfigEntry<T>(string section, string key, T defaultVal, string description)
+        public PluginConfig(ConfigFile file)
         {
-            return configFile.Bind(section, key, defaultVal, description).Value;
+            configFile = file;
         }
 
         public void InitBindings()
         {
-            REVIVE = ConfigEntry("Revive Players", "Revive all players in the ship.", true, "");
+            EnableRevive = configFile.Bind(
+                "General",
+                "EnableRevive",
+                true,
+                "Enable or disable the entire revive feature."
+            );
+
+            BaseReviveCost = configFile.Bind(
+                "Costs",
+                "BaseReviveCost",
+                100,
+                "Base cost used in the revive formula."
+            );
+
+            ReviveCostAlgorithm = configFile.Bind(
+                "Costs",
+                "ReviveCostAlgorithm",
+                "Quota",
+                "How the revive cost is calculated: Flat, Exponential, or Quota"
+            );
+
+            EnableMaxRevivesPerDay = configFile.Bind(
+                "Limits",
+                "EnableMaxRevivesPerDay",
+                false,
+                "If true, limits how many revives can happen each real-life day."
+            );
+
+            MaxRevivesPerDay = configFile.Bind(
+                "Limits",
+                "MaxRevivesPerDay",
+                3,
+                "Max revives allowed per day (if EnableMaxRevivesPerDay is true)."
+            );
         }
     }
 }
