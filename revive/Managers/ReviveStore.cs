@@ -3,56 +3,67 @@ using lethalCompanyRevive.Helpers;
 using lethalCompanyRevive.Misc;
 using Unity.Netcode;
 using UnityEngine;
-using System;
 
 namespace lethalCompanyRevive.Managers
 {
     public class ReviveStore : NetworkBehaviour
     {
         public static ReviveStore Instance { get; private set; }
-
         int dailyRevivesUsed;
-        DateTime lastReviveDay = DateTime.Now.Date;
 
         public override void OnNetworkSpawn()
         {
+            // If there's an old instance, despawn it so we only keep this new one.
+            if (NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsServer)
+            {
+                if (Instance != null && Instance != this)
+                {
+                    var oldNet = Instance.GetComponent<NetworkObject>();
+                    if (oldNet != null && oldNet.IsSpawned)
+                        oldNet.Despawn();
+                }
+            }
             Instance = this;
             base.OnNetworkSpawn();
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            base.OnNetworkDespawn();
+            if (Instance == this) Instance = null;
         }
 
         [ServerRpc(RequireOwnership = false)]
         public void RequestReviveServerRpc(ulong playerId)
         {
-            if (!CheckDayReset()) return;
             if (!Plugin.cfg.EnableRevive.Value) return;
             if (!CanReviveNow()) return;
+
             var p = Helper.GetPlayer(playerId.ToString());
             if (p == null || !p.isPlayerDead) return;
+
             int cost = ComputeReviveCost(dailyRevivesUsed);
             if (!CanAfford(cost)) return;
+
             DeductCredits(cost);
             ReviveSinglePlayer(p);
             IncrementDailyRevives();
         }
 
-        bool CheckDayReset()
+        public void ResetDailyRevives()
         {
-            var today = DateTime.Now.Date;
-            if (today != lastReviveDay)
-            {
-                lastReviveDay = today;
-                dailyRevivesUsed = 0;
-            }
-            return true;
+            dailyRevivesUsed = 0;
         }
 
         public bool CanReviveNow()
         {
-            if (!Plugin.cfg.EnableRevive.Value) return false;
-            if (Plugin.cfg.EnableMaxRevivesPerDay.Value)
-            {
-                if (dailyRevivesUsed >= Plugin.cfg.MaxRevivesPerDay.Value) return false;
-            }
+            if (!Plugin.cfg.EnableRevive.Value)
+                return false;
+
+            if (Plugin.cfg.EnableMaxRevivesPerDay.Value &&
+                dailyRevivesUsed >= Plugin.cfg.MaxRevivesPerDay.Value)
+                return false;
+
             return true;
         }
 
@@ -64,13 +75,13 @@ namespace lethalCompanyRevive.Managers
 
         bool CanAfford(int cost)
         {
-            Terminal t = GameObject.Find("TerminalScript").GetComponent<Terminal>();
+            Terminal t = GameObject.Find("TerminalScript")?.GetComponent<Terminal>();
             return (t != null && t.groupCredits >= cost);
         }
 
         void DeductCredits(int cost)
         {
-            Terminal t = GameObject.Find("TerminalScript").GetComponent<Terminal>();
+            Terminal t = GameObject.Find("TerminalScript")?.GetComponent<Terminal>();
             if (t == null) return;
             t.groupCredits -= cost;
             SyncCreditsServerRpc(t.groupCredits);
@@ -85,7 +96,7 @@ namespace lethalCompanyRevive.Managers
         [ClientRpc]
         void SyncCreditsClientRpc(int newCredits)
         {
-            Terminal t = GameObject.Find("TerminalScript").GetComponent<Terminal>();
+            Terminal t = GameObject.Find("TerminalScript")?.GetComponent<Terminal>();
             if (t != null) t.groupCredits = newCredits;
         }
 
@@ -128,83 +139,92 @@ namespace lethalCompanyRevive.Managers
         void RevivePlayerClientRpc(Vector3 spawnPosition, NetworkBehaviourReference netRef)
         {
             if (!netRef.TryGet(out NetworkBehaviour nb)) return;
-            PlayerControllerB p = nb.GetComponent<PlayerControllerB>();
-            if (p == null) return;
-            int i = GetPlayerIndex(p.playerUsername);
-            p.ResetPlayerBloodObjects(p.isPlayerDead || p.isPlayerControlled);
-            p.isClimbingLadder = false;
-            p.clampLooking = false;
-            p.inVehicleAnimation = false;
-            p.disableMoveInput = false;
-            p.disableLookInput = false;
-            p.disableInteract = false;
-            p.ResetZAndXRotation();
-            p.thisController.enabled = true;
-            p.health = 100;
-            p.hasBeenCriticallyInjured = false;
-            p.disableSyncInAnimation = false;
-            if (p.isPlayerDead)
+            PlayerControllerB plr = nb.GetComponent<PlayerControllerB>();
+            if (plr == null) return;
+
+            int i = GetPlayerIndex(plr.playerUsername);
+
+            plr.ResetPlayerBloodObjects(plr.isPlayerDead || plr.isPlayerControlled);
+            plr.isClimbingLadder = false;
+            plr.clampLooking = false;
+            plr.inVehicleAnimation = false;
+            plr.disableMoveInput = false;
+            plr.disableLookInput = false;
+            plr.disableInteract = false;
+            plr.ResetZAndXRotation();
+            plr.thisController.enabled = true;
+            plr.health = 100;
+            plr.hasBeenCriticallyInjured = false;
+            plr.disableSyncInAnimation = false;
+
+            if (plr.isPlayerDead)
             {
-                p.isPlayerDead = false;
-                p.isPlayerControlled = true;
-                p.isInElevator = true;
-                p.isInHangarShipRoom = true;
-                p.isInsideFactory = false;
-                p.parentedToElevatorLastFrame = false;
-                p.overrideGameOverSpectatePivot = null;
-                if (p.IsOwner)
+                plr.isPlayerDead = false;
+                plr.isPlayerControlled = true;
+                plr.isInElevator = true;
+                plr.isInHangarShipRoom = true;
+                plr.isInsideFactory = false;
+                plr.parentedToElevatorLastFrame = false;
+                plr.overrideGameOverSpectatePivot = null;
+                if (plr.IsOwner)
                     StartOfRound.Instance.SetPlayerObjectExtrapolate(false);
-                p.TeleportPlayer(spawnPosition);
-                p.setPositionOfDeadPlayer = false;
-                p.DisablePlayerModel(StartOfRound.Instance.allPlayerObjects[i], true, true);
-                p.helmetLight.enabled = false;
-                p.Crouch(false);
-                p.criticallyInjured = false;
-                if (p.playerBodyAnimator != null) p.playerBodyAnimator.SetBool("Limp", false);
-                p.bleedingHeavily = false;
-                p.activatingItem = false;
-                p.twoHanded = false;
-                p.inShockingMinigame = false;
-                p.inSpecialInteractAnimation = false;
-                p.freeRotationInInteractAnimation = false;
-                p.inAnimationWithEnemy = null;
-                p.holdingWalkieTalkie = false;
-                p.speakingToWalkieTalkie = false;
-                p.isSinking = false;
-                p.isUnderwater = false;
-                p.sinkingValue = 0f;
-                p.statusEffectAudio.Stop();
-                p.DisableJetpackControlsLocally();
-                p.health = 100;
-                p.mapRadarDotAnimator.SetBool("dead", false);
-                p.externalForceAutoFade = Vector3.zero;
-                if (p.IsOwner)
+
+                plr.TeleportPlayer(spawnPosition);
+                plr.setPositionOfDeadPlayer = false;
+                plr.DisablePlayerModel(StartOfRound.Instance.allPlayerObjects[i], true, true);
+                plr.helmetLight.enabled = false;
+                plr.Crouch(false);
+                plr.criticallyInjured = false;
+                if (plr.playerBodyAnimator != null) plr.playerBodyAnimator.SetBool("Limp", false);
+                plr.bleedingHeavily = false;
+                plr.activatingItem = false;
+                plr.twoHanded = false;
+                plr.inShockingMinigame = false;
+                plr.inSpecialInteractAnimation = false;
+                plr.freeRotationInInteractAnimation = false;
+                plr.inAnimationWithEnemy = null;
+                plr.holdingWalkieTalkie = false;
+                plr.speakingToWalkieTalkie = false;
+                plr.isSinking = false;
+                plr.isUnderwater = false;
+                plr.sinkingValue = 0f;
+                plr.statusEffectAudio.Stop();
+                plr.DisableJetpackControlsLocally();
+                plr.health = 100;
+                plr.mapRadarDotAnimator.SetBool("dead", false);
+                plr.externalForceAutoFade = Vector3.zero;
+
+                if (plr.IsOwner)
                 {
                     HUDManager.Instance.gasHelmetAnimator.SetBool("gasEmitting", false);
-                    p.hasBegunSpectating = false;
+                    plr.hasBegunSpectating = false;
                     HUDManager.Instance.RemoveSpectateUI();
                     HUDManager.Instance.gameOverAnimator.SetTrigger("revive");
-                    p.hinderedMultiplier = 1f;
-                    p.isMovementHindered = 0;
-                    p.sourcesCausingSinking = 0;
-                    p.reverbPreset = StartOfRound.Instance.shipReverb;
+                    plr.hinderedMultiplier = 1f;
+                    plr.isMovementHindered = 0;
+                    plr.sourcesCausingSinking = 0;
+                    plr.reverbPreset = StartOfRound.Instance.shipReverb;
                 }
             }
+
             SoundManager.Instance.earsRingingTimer = 0f;
-            p.voiceMuffledByEnemy = false;
+            plr.voiceMuffledByEnemy = false;
             SoundManager.Instance.playerVoicePitchTargets[i] = 1f;
             SoundManager.Instance.SetPlayerPitch(1f, i);
-            if (p.currentVoiceChatIngameSettings == null)
+
+            if (plr.currentVoiceChatIngameSettings == null)
                 StartOfRound.Instance.RefreshPlayerVoicePlaybackObjects();
-            if (p.currentVoiceChatIngameSettings != null)
+
+            if (plr.currentVoiceChatIngameSettings != null)
             {
-                if (p.currentVoiceChatIngameSettings.voiceAudio == null)
-                    p.currentVoiceChatIngameSettings.InitializeComponents();
-                if (p.currentVoiceChatIngameSettings.voiceAudio != null)
-                    p.currentVoiceChatIngameSettings.voiceAudio.GetComponent<OccludeAudio>().overridingLowPass = false;
+                if (plr.currentVoiceChatIngameSettings.voiceAudio == null)
+                    plr.currentVoiceChatIngameSettings.InitializeComponents();
+                if (plr.currentVoiceChatIngameSettings.voiceAudio != null)
+                    plr.currentVoiceChatIngameSettings.voiceAudio.GetComponent<OccludeAudio>().overridingLowPass = false;
             }
+
             PlayerControllerB localP = GameNetworkManager.Instance.localPlayerController;
-            if (localP == p)
+            if (localP == plr)
             {
                 localP.bleedingHeavily = false;
                 localP.criticallyInjured = false;
@@ -217,6 +237,7 @@ namespace lethalCompanyRevive.Managers
                 HUDManager.Instance.gameOverAnimator.SetTrigger("revive");
                 StartOfRound.Instance.SetSpectateCameraToGameOverMode(false, localP);
             }
+
             RagdollGrabbableObject[] rags = UnityEngine.Object.FindObjectsOfType<RagdollGrabbableObject>();
             for (int x = 0; x < rags.Length; x++)
             {
@@ -232,14 +253,17 @@ namespace lethalCompanyRevive.Managers
                     rags[x].playerHeldBy.DropAllHeldItems();
                 }
             }
+
             DeadBodyInfo[] bodies = UnityEngine.Object.FindObjectsOfType<DeadBodyInfo>();
             for (int y = 0; y < bodies.Length; y++)
                 UnityEngine.Object.Destroy(bodies[y].gameObject);
+
             if (IsServer)
             {
                 StartOfRound.Instance.livingPlayers++;
                 StartOfRound.Instance.allPlayersDead = false;
             }
+
             StartOfRound.Instance.UpdatePlayerVoiceEffects();
         }
 
@@ -284,16 +308,21 @@ namespace lethalCompanyRevive.Managers
             var so = StartOfRound.Instance;
             if (so == null || so.playerSpawnPositions == null)
                 return Vector3.zero;
+
             if (simpleTeleport ||
                 playerNum < 0 ||
                 playerNum >= so.playerSpawnPositions.Length)
                 return so.playerSpawnPositions[0].position;
+
             var spawns = so.playerSpawnPositions;
             if (spawns.Length == 0) return Vector3.zero;
+
             if (!Physics.CheckSphere(spawns[playerNum].position, 0.2f, 67108864, QueryTriggerInteraction.Ignore))
                 return spawns[playerNum].position;
+
             if (!Physics.CheckSphere(spawns[playerNum].position + Vector3.up, 0.2f, 67108864, QueryTriggerInteraction.Ignore))
                 return spawns[playerNum].position + Vector3.up * 0.5f;
+
             for (int i = 0; i < spawns.Length; i++)
             {
                 if (i == playerNum) continue;
@@ -302,6 +331,7 @@ namespace lethalCompanyRevive.Managers
                 if (!Physics.CheckSphere(spawns[i].position + Vector3.up, 0.12f, 67108864, QueryTriggerInteraction.Ignore))
                     return spawns[i].position + Vector3.up * 0.5f;
             }
+
             System.Random random = new System.Random(65);
             float y = spawns[0].position.y;
             for (int attempt = 0; attempt < 15; attempt++)
@@ -314,6 +344,7 @@ namespace lethalCompanyRevive.Managers
                 float randX = random.Next(xMin, xMax);
                 float randZ = random.Next(zMin, zMax);
                 Vector3 candidate = new Vector3(randX, y, randZ);
+
                 if (!Physics.CheckSphere(candidate, 0.12f, 67108864, QueryTriggerInteraction.Ignore))
                     return candidate;
             }
