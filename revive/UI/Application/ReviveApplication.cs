@@ -12,9 +12,9 @@ using UnityEngine;
 
 namespace lethalCompanyRevive.UI.Application
 {
-    internal class ReviveApplication : InteractiveTerminalApplication
+    internal class ReviveApplication : InteractiveTerminalApplication<CursorElement>
     {
-        CursorMenu mainMenu;
+        CursorMenu<CursorElement> mainMenu;
         IScreen mainScreen;
 
         public override void Initialization()
@@ -68,7 +68,7 @@ namespace lethalCompanyRevive.UI.Application
             // Exit
             elements[elements.Length - 1] = CursorElement.Create("Exit", "", () => CloseUI());
 
-            mainMenu = CursorMenu.Create(0, '>', elements);
+            mainMenu = CursorMenu<CursorElement>.Create(0, '>', elements);
             mainScreen = BoxedScreen.Create(
                 "Revive",
                 new ITextElement[]
@@ -177,7 +177,7 @@ namespace lethalCompanyRevive.UI.Application
 
         void ShowNoPlayersUI()
         {
-            var menu = CursorMenu.Create(0, '>', new[]
+            var menu = CursorMenu<CursorElement>.Create(0, '>', new[]
             {
                 CursorElement.Create("Exit", "", () => CloseUI())
             });
@@ -192,7 +192,7 @@ namespace lethalCompanyRevive.UI.Application
 
         void ShowNoDeadPlayersUI()
         {
-            var menu = CursorMenu.Create(0, '>', new[]
+            var menu = CursorMenu<CursorElement>.Create(0, '>', new[]
             {
                 CursorElement.Create("Exit", "", () => CloseUI())
             });
