@@ -3,7 +3,13 @@
 
 This adds the ability to revive a player for a configurable amount of credits.
 
-## V 1.1.0
+## V 1.2.1
+### **[ Fixed ]**
+
+- Revived players now get their HUD back
+- Revived players no longer stay stuck in the dead players' spectator list (speaking icons, broken layout)
+
+## V 1.2.0
 ### **[ Fixed ]**
 
 - Updated for the latest Lethal Company (Netcode 1.12.2), LethalLib 1.2.0 and Interactive Terminal API 1.3.3

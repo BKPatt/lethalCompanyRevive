@@ -1,5 +1,6 @@
 using System;
 using GameNetcodeStuff;
+using lethalCompanyRevive.Misc;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -234,7 +235,14 @@ namespace lethalCompanyRevive.Managers
                 localP.spectatedPlayerScript = null;
                 HUDManager.Instance.audioListenerLowPass.enabled = false;
                 so.SetSpectateCameraToGameOverMode(false, localP);
+                // KillPlayer hides the HUD; ReviveDeadPlayers doesn't restore it (the game does that separately at round end).
+                HUDManager.Instance.HideHUD(false);
             }
+
+            // The dead players' spectator list only ever drops players who disconnect, so the
+            // revived player would stay listed there. Rebuild it from whoever is still dead.
+            if (localP != null && (localP == plr || localP.isPlayerDead))
+                ResetSpectateUI();
 
             RemovePlayerBody(plr, i);
 
@@ -269,6 +277,17 @@ namespace lethalCompanyRevive.Managers
                     Destroy(body.gameObject);
             }
             plr.deadBody = null;
+        }
+
+        static void ResetSpectateUI()
+        {
+            var hud = HUDManager.Instance;
+            // Hides every box and clears hasLoadedSpectateUI, so HUDManager.Update rebuilds the
+            // list next frame if the local player is still dead.
+            hud.RemoveSpectateUI();
+            // RemoveSpectateUI decrements once per box, including already-hidden ones, which would
+            // leave the counter negative and misplace boxes later.
+            Reflector.Target(hud).SetInternalField("boxesAdded", 0);
         }
 
         void SyncLivingPlayers()

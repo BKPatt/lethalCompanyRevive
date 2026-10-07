@@ -57,8 +57,9 @@
         <Exec Command="netcode-patch -nv $(NetcodeVersion) -tv $(TransportVersion) -uv $(UnityVersion) &quot;$(TargetPath)&quot; @(ReferencePathWithRefAssemblies->'&quot;%(Identity)&quot;', ' ')" />
     </Target>
 
-    <!-- Copies the built plugin into the mod manager profile so it can be launched straight away. -->
-    <Target Name="Deploy" AfterTargets="NetcodePatch" Condition="Exists('$(BepInExDir)')">
+    <!-- Opt-in: dotnet build -p:Deploy=true copies the plugin into the mod manager profile for local testing.
+         Leave it off when the profile has the Thunderstore version installed, or you'll load two copies. -->
+    <Target Name="Deploy" AfterTargets="NetcodePatch" Condition="'$(Deploy)' == 'true' And Exists('$(BepInExDir)')">
         <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DeployDir)" />
     </Target>
 </Project>

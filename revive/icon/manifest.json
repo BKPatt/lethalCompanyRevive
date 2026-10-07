@@ -1,6 +1,6 @@
 {
     "name": "Revive",
-    "version_number": "1.1.0",
+    "version_number": "1.2.1",
     "website_url": "https://github.com/BKPatt/lethalCompanyRevive",
     "description": "Revive a Player From the Terminal by typing 'revive' to pull up the interface",
     "dependencies": [
